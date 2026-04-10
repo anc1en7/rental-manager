@@ -1,9 +1,9 @@
 // ============================================================
 // utils.js — Shared helpers used by every page
 // ============================================================
-export { supabase, SUPABASE_URL } from './supabase.js'
-import { supabase } from './supabase.js'
+import { supabase, SUPABASE_URL } from './supabase.js'
 import { translations } from './i18n.js'
+export { supabase, SUPABASE_URL }
 
 // ── Language ────────────────────────────────────────────────
 export function getLang() {
