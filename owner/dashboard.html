@@ -20,6 +20,14 @@
     const user = await setupOwnerPage('dashboard')
     if (!user) throw new Error('no user')
 
+    function showError(err) {
+      document.getElementById('content').innerHTML = `
+        <div class="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-800">
+          <p class="font-semibold mb-1">Error loading dashboard</p>
+          <p class="text-sm font-mono">${String(err)}</p>
+        </div>`
+    }
+
     async function load() {
       // Fetch all data in parallel
       const [housesRes, roomsRes] = await Promise.all([
@@ -112,7 +120,12 @@
         </div>`
     }
 
-    await load()
+    try {
+      await load()
+    } catch (err) {
+      console.error(err)
+      showError(err)
+    }
   </script>
 </body>
 </html>

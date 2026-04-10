@@ -20,10 +20,14 @@ export function t(key) {
 
 // ── Auth ─────────────────────────────────────────────────────
 export async function getUser() {
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-  const { data: profile } = await supabase
+  const { data: { user }, error: authErr } = await supabase.auth.getUser()
+  if (authErr || !user) return null
+  const { data: profile, error: profileErr } = await supabase
     .from('profiles').select('*').eq('id', user.id).single()
+  if (profileErr) {
+    // Surface the real error so it isn't silently swallowed
+    throw new Error(`Profile query failed: ${profileErr.message} (code: ${profileErr.code})`)
+  }
   return profile ? { ...user, ...profile } : null
 }
 
