@@ -17,16 +17,25 @@
   <script type="module">
     import { supabase, setupOwnerPage, t, getLang, formatCurrency, formatDate, badge } from '../js/utils.js'
 
-    const user = await setupOwnerPage('dashboard')
-    if (!user) throw new Error('no user')
-
-    function showError(err) {
+    const showError = (err) => {
       document.getElementById('content').innerHTML = `
         <div class="bg-red-50 border border-red-200 rounded-2xl p-6 text-red-800">
-          <p class="font-semibold mb-1">Error loading dashboard</p>
-          <p class="text-sm font-mono">${String(err)}</p>
+          <p class="font-semibold mb-2">Error loading dashboard</p>
+          <p class="text-sm font-mono whitespace-pre-wrap">${String(err)}</p>
+          <p class="text-xs mt-3 text-red-600">Check the browser console (F12) for more details.</p>
         </div>`
     }
+
+    ;(async () => {
+    let user
+    try {
+      user = await setupOwnerPage('dashboard')
+    } catch (err) {
+      console.error('setupOwnerPage failed:', err)
+      showError(err)
+      return
+    }
+    if (!user) return   // requireAuth is redirecting — let it happen
 
     async function load() {
       // Fetch all data in parallel
@@ -123,9 +132,11 @@
     try {
       await load()
     } catch (err) {
-      console.error(err)
+      console.error('load() failed:', err)
       showError(err)
     }
+
+    })()  // end of async IIFE
   </script>
 </body>
 </html>
