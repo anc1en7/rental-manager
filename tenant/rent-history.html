@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Rent History — RentManager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
+    <div id="topnav" class="contents"></div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-4 py-10">
+    <div id="content" class="text-gray-400 text-sm">Loading…</div>
+  </main>
+
+  <script type="module">
+    import { supabase, setupTenantPage, t, badge, formatCurrency, formatDate, formatMonthYear } from '../js/utils.js'
+
+    const user = await setupTenantPage('rent_history')
+    if (!user) throw new Error('no user')
+
+    async function load() {
+      // All leases
+      const { data: leases } = await supabase
+        .from('leases')
+        .select('id, monthly_rent, start_date, end_date, status, room:rooms(room_number, house:houses(name))')
+        .eq('tenant_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (!leases?.length) {
+        document.getElementById('content').innerHTML = `
+          <div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
+            <p class="text-gray-400">${t('no_active_lease')}</p>
+          </div>`
+        return
+      }
+
+      // All rent records across all leases
+      const { data: recs } = await supabase
+        .from('rent_records')
+        .select('*')
+        .in('lease_id', leases.map(l => l.id))
+        .order('due_date', { ascending: false })
+
+      const leaseMap = Object.fromEntries(leases.map(l => [l.id, l]))
+
+      const totalDue  = (recs ?? []).reduce((s, r) => s + (+r.amount_due  || 0), 0)
+      const totalPaid = (recs ?? []).reduce((s, r) => s + (+r.amount_paid || 0), 0)
+      const outstanding = totalDue - totalPaid
+
+      document.getElementById('content').innerHTML = `
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-gray-900">${t('rent_history')}</h1>
+        </div>
+
+        <!-- Summary -->
+        <div class="grid grid-cols-3 gap-4 mb-8">
+          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 mb-1">${t('total_due')}</p>
+            <p class="text-xl font-bold text-gray-900">${formatCurrency(totalDue)}</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 mb-1">${t('total_paid')}</p>
+            <p class="text-xl font-bold text-emerald-600">${formatCurrency(totalPaid)}</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 mb-1">${t('outstanding')}</p>
+            <p class="text-xl font-bold ${outstanding > 0 ? 'text-amber-600' : 'text-gray-400'}">${formatCurrency(outstanding)}</p>
+          </div>
+        </div>
+
+        <!-- Records table -->
+        <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          ${!recs?.length ? `
+            <div class="px-6 py-10 text-center text-gray-400 text-sm">${t('no_rent_records')}</div>` : `
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th class="px-6 py-3 text-left">${t('due_date')}</th>
+                    <th class="px-6 py-3 text-left">${t('house_label')} / ${t('room_label')}</th>
+                    <th class="px-6 py-3 text-right">${t('amount_due')}</th>
+                    <th class="px-6 py-3 text-right">${t('amount_paid')}</th>
+                    <th class="px-6 py-3 text-center">${t('status')}</th>
+                    <th class="px-6 py-3 text-left">${t('paid_on')}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  ${recs.map(rec => {
+                    const lease = leaseMap[rec.lease_id] ?? {}
+                    const houseName  = lease.room?.house?.name ?? '—'
+                    const roomNumber = lease.room?.room_number ?? '—'
+                    return `
+                      <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-3 font-medium">${formatDate(rec.due_date)}</td>
+                        <td class="px-6 py-3 text-gray-600 text-xs">
+                          <div>${houseName}</div>
+                          <div class="text-gray-400">${t('room_label')} ${roomNumber}</div>
+                        </td>
+                        <td class="px-6 py-3 text-right font-medium">${formatCurrency(rec.amount_due)}</td>
+                        <td class="px-6 py-3 text-right ${rec.status === 'paid' ? 'text-emerald-600 font-medium' : 'text-gray-600'}">${formatCurrency(rec.amount_paid)}</td>
+                        <td class="px-6 py-3 text-center">${badge(rec.status)}</td>
+                        <td class="px-6 py-3 text-gray-500 text-xs">${rec.paid_at ? formatDate(rec.paid_at) : t('not_available')}</td>
+                      </tr>`
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>`}
+        </div>`
+    }
+
+    await load()
+  </script>
+</body>
+</html>

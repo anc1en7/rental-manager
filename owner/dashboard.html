@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Dashboard — RentManager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="w-56 bg-white border-r border-gray-100 flex-shrink-0 flex flex-col"></aside>
+    <main class="flex-1 p-8 min-w-0">
+      <div id="content" class="text-gray-400 text-sm">Loading…</div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { supabase, setupOwnerPage, t, getLang, formatCurrency, formatDate, badge } from '../js/utils.js'
+
+    const user = await setupOwnerPage('dashboard')
+    if (!user) throw new Error('no user')
+
+    async function load() {
+      // Fetch all data in parallel
+      const [housesRes, roomsRes] = await Promise.all([
+        supabase.from('houses').select('id,name,address,city').eq('owner_id', user.id),
+        supabase.from('rooms').select('id,house_id,monthly_rent'),
+      ])
+      const houses   = housesRes.data ?? []
+      const rooms    = roomsRes.data  ?? []
+      const roomIds  = rooms.map(r => r.id)
+      const houseIds = houses.map(h => h.id)
+
+      let leases = [], rentRecords = []
+
+      if (roomIds.length) {
+        const lRes = await supabase.from('leases').select('id,room_id,monthly_rent,tenant_id').eq('status','active').in('room_id', roomIds)
+        leases = lRes.data ?? []
+      }
+
+      if (leases.length) {
+        const now = new Date()
+        const m0 = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        const m1 = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0]
+        const lIds = leases.map(l => l.id)
+        const rRes = await supabase.from('rent_records').select('*').in('lease_id', lIds).gte('due_date', m0).lte('due_date', m1)
+        rentRecords = rRes.data ?? []
+      }
+
+      const totalDue   = rentRecords.reduce((s, r) => s + (+r.amount_due  || 0), 0)
+      const totalPaid  = rentRecords.reduce((s, r) => s + (+r.amount_paid || 0), 0)
+      const occupied   = leases.length
+      const totalRooms = rooms.length
+
+      const locale = getLang() === 'de' ? 'de-DE' : 'en-GB'
+      const today  = new Date().toLocaleDateString(locale, { weekday:'long', year:'numeric', month:'long', day:'numeric' })
+
+      document.getElementById('content').innerHTML = `
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-gray-900">${t('dashboard')}</h1>
+          <p class="text-gray-500 text-sm mt-1">${today}</p>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
+          ${stat('🏠', t('total_houses'),            houses.length,                    'bg-indigo-50','text-indigo-600')}
+          ${stat('🚪', t('occupied_rooms'),           `${occupied} / ${totalRooms}`,    'bg-blue-50',  'text-blue-600')}
+          ${stat('📋', t('rent_due_this_month'),      formatCurrency(totalDue),          'bg-amber-50', 'text-amber-600')}
+          ${stat('✅', t('rent_collected_this_month'), formatCurrency(totalPaid),         'bg-emerald-50','text-emerald-600')}
+        </div>
+
+        <!-- Houses overview -->
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-gray-900">${t('houses')}</h2>
+            <a href="houses.html" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">${t('add_house')} →</a>
+          </div>
+          ${houses.length === 0 ? `
+            <div class="bg-white rounded-2xl border border-dashed border-gray-300 p-10 text-center">
+              <p class="text-gray-500 mb-4">${t('no_houses')}</p>
+              <a href="houses.html" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition">${t('add_house')}</a>
+            </div>` : `
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+              ${houses.map(h => {
+                const hRooms  = rooms.filter(r => r.house_id === h.id)
+                const hLeases = leases.filter(l => hRooms.some(r => r.id === l.room_id))
+                return `
+                  <a href="house-detail.html?id=${h.id}"
+                    class="bg-white rounded-2xl border border-gray-200 p-5 hover:border-indigo-300 hover:shadow-sm transition block group">
+                    <div class="flex items-start justify-between mb-4">
+                      <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 text-xl">🏠</div>
+                      <span class="text-xs font-medium px-2.5 py-1 rounded-full ${hLeases.length > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
+                        ${hLeases.length}/${hRooms.length} ${t('occupied')}
+                      </span>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 group-hover:text-indigo-700">${h.name}</h3>
+                    <p class="text-xs text-gray-500 mt-1">${h.address}, ${h.city}</p>
+                  </a>`
+              }).join('')}
+            </div>`}
+        </div>`
+    }
+
+    function stat(icon, label, value, bg, text) {
+      return `
+        <div class="bg-white rounded-2xl border border-gray-200 p-5">
+          <div class="flex items-center gap-3 mb-2">
+            <div class="w-9 h-9 ${bg} rounded-xl flex items-center justify-center text-lg">${icon}</div>
+            <span class="text-xs text-gray-500 font-medium">${label}</span>
+          </div>
+          <div class="text-xl font-bold text-gray-900 ${text}">${value}</div>
+        </div>`
+    }
+
+    await load()
+  </script>
+</body>
+</html>

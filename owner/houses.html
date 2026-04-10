@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Houses — RentManager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="w-56 bg-white border-r border-gray-100 flex-shrink-0 flex flex-col"></aside>
+    <main class="flex-1 p-8 min-w-0">
+      <div id="content" class="text-gray-400 text-sm">Loading…</div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { supabase, setupOwnerPage, t, openModal, closeModal, toast, inp, lbl, btnP, btnS, btnD } from '../js/utils.js'
+
+    const user = await setupOwnerPage('houses')
+    if (!user) throw new Error('no user')
+
+    async function load() {
+      const { data: houses } = await supabase.from('houses').select('id,name,address,city,country').eq('owner_id', user.id).order('created_at')
+      const houseIds = (houses ?? []).map(h => h.id)
+
+      let rooms = []
+      if (houseIds.length) {
+        const { data } = await supabase.from('rooms').select('id,house_id').in('house_id', houseIds)
+        rooms = data ?? []
+      }
+      let leases = []
+      if (rooms.length) {
+        const { data } = await supabase.from('leases').select('id,room_id').eq('status','active').in('room_id', rooms.map(r=>r.id))
+        leases = data ?? []
+      }
+
+      document.getElementById('content').innerHTML = `
+        <div class="flex items-center justify-between mb-8">
+          <h1 class="text-2xl font-bold text-gray-900">${t('houses')}</h1>
+          <button onclick="showAddHouse()" class="${btnP}">${t('add_house')}</button>
+        </div>
+        ${!houses?.length ? `
+          <div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
+            <div class="text-4xl mb-4">🏠</div>
+            <p class="text-gray-500">${t('no_houses')}</p>
+            <button onclick="showAddHouse()" class="${btnP} mt-5">${t('add_house')}</button>
+          </div>` : `
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+            ${houses.map(h => {
+              const total    = rooms.filter(r => r.house_id === h.id).length
+              const occupied = leases.filter(l => rooms.some(r => r.id === l.room_id && r.house_id === h.id)).length
+              return `
+                <div class="bg-white rounded-2xl border border-gray-200 flex flex-col overflow-hidden hover:shadow-sm transition">
+                  <a href="house-detail.html?id=${h.id}" class="flex-1 p-5 block group">
+                    <div class="flex items-start justify-between mb-3">
+                      <div class="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-xl">🏠</div>
+                      <span class="text-xs font-medium px-2.5 py-1 rounded-full ${occupied > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500'}">
+                        ${occupied}/${total} ${t('occupied')}
+                      </span>
+                    </div>
+                    <h3 class="font-semibold text-gray-900 group-hover:text-indigo-700">${h.name}</h3>
+                    <p class="text-xs text-gray-500 mt-1">${h.address}</p>
+                    <p class="text-xs text-gray-500">${h.city}, ${h.country}</p>
+                  </a>
+                  <div class="flex border-t border-gray-100">
+                    <button onclick='editHouse(${JSON.stringify(h)})'
+                      class="flex-1 text-xs py-2.5 text-indigo-600 hover:bg-indigo-50 font-medium transition">${t('edit')}</button>
+                    <button onclick="deleteHouse('${h.id}','${h.name.replace(/'/g,"\\\'")}')"
+                      class="flex-1 text-xs py-2.5 text-red-600 hover:bg-red-50 font-medium transition border-l border-gray-100">${t('delete')}</button>
+                  </div>
+                </div>`
+            }).join('')}
+          </div>`}
+      `
+    }
+
+    function houseForm(h = {}) {
+      return `
+        <div><label class="${lbl}">${t('house_name')} *</label>
+          <input id="f-name" class="${inp}" value="${h.name ?? ''}" placeholder="e.g. Musterstraße 12"/></div>
+        <div><label class="${lbl}">${t('address')} *</label>
+          <input id="f-addr" class="${inp}" value="${h.address ?? ''}" placeholder="e.g. Musterstraße 12, Apt 1"/></div>
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="${lbl}">${t('city')} *</label>
+            <input id="f-city" class="${inp}" value="${h.city ?? ''}" placeholder="Berlin"/></div>
+          <div><label class="${lbl}">${t('country')}</label>
+            <input id="f-country" class="${inp}" value="${h.country ?? 'Germany'}" placeholder="Germany"/></div>
+        </div>`
+    }
+
+    window.showAddHouse = () => {
+      openModal(t('add_house'), houseForm(), `
+        <button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
+        <button onclick="saveHouse()" class="${btnP}">${t('save')}</button>`)
+    }
+
+    window.editHouse = h => {
+      openModal(t('edit_house'), houseForm(h), `
+        <button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
+        <button onclick="saveHouse('${h.id}')" class="${btnP}">${t('save')}</button>`)
+    }
+
+    window.saveHouse = async (id) => {
+      const name    = document.getElementById('f-name').value.trim()
+      const address = document.getElementById('f-addr').value.trim()
+      const city    = document.getElementById('f-city').value.trim()
+      const country = document.getElementById('f-country').value.trim() || 'Germany'
+      if (!name || !address || !city) { toast(t('error'), 'error'); return }
+
+      const payload = { name, address, city, country, owner_id: user.id }
+      const { error } = id
+        ? await supabase.from('houses').update(payload).eq('id', id)
+        : await supabase.from('houses').insert(payload)
+      if (error) { toast(t('error'), 'error'); return }
+      toast(t('success'))
+      closeModal()
+      await load()
+    }
+
+    window.deleteHouse = async (id, name) => {
+      if (!confirm(`${t('delete_house_confirm')}\n\n"${name}"`)) return
+      const { error } = await supabase.from('houses').delete().eq('id', id)
+      if (error) { toast(t('error'), 'error'); return }
+      toast(t('success'))
+      await load()
+    }
+
+    // expose helpers used by modal buttons
+    window.closeModal = closeModal
+
+    await load()
+  </script>
+</body>
+</html>

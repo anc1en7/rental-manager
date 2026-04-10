@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Tenants — RentManager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="w-56 bg-white border-r border-gray-100 flex-shrink-0 flex flex-col"></aside>
+    <main class="flex-1 p-8 min-w-0">
+      <div id="content" class="text-gray-400 text-sm">Loading…</div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { supabase, SUPABASE_URL, setupOwnerPage, t, openModal, closeModal, toast, badge,
+             formatCurrency, formatDate, inp, lbl, btnP, btnS } from '../js/utils.js'
+
+    const user = await setupOwnerPage('tenants')
+    if (!user) throw new Error('no user')
+
+    async function load() {
+      // Get all rooms in the owner's houses
+      const { data: houses } = await supabase.from('houses').select('id,name').eq('owner_id', user.id)
+      const houseIds = (houses ?? []).map(h => h.id)
+      const houseMap = Object.fromEntries((houses ?? []).map(h => [h.id, h.name]))
+
+      let rows = []
+      if (houseIds.length) {
+        const { data: rooms } = await supabase.from('rooms').select('id,house_id,room_number').in('house_id', houseIds)
+        const roomMap = Object.fromEntries((rooms ?? []).map(r => [r.id, r]))
+
+        if (rooms?.length) {
+          const { data: leases } = await supabase
+            .from('leases')
+            .select('id,tenant_id,room_id,start_date,end_date,monthly_rent,status')
+            .in('room_id', rooms.map(r => r.id))
+            .eq('status','active')
+            .order('created_at', { ascending: false })
+
+          const tenantIds = [...new Set((leases ?? []).map(l => l.tenant_id))]
+          let profiles = []
+          if (tenantIds.length) {
+            const { data } = await supabase.from('profiles').select('id,name').in('id', tenantIds)
+            profiles = data ?? []
+          }
+          const profileMap = Object.fromEntries(profiles.map(p => [p.id, p.name]))
+
+          rows = (leases ?? []).map(l => {
+            const room  = roomMap[l.room_id]
+            const house = room ? houseMap[room.house_id] : '—'
+            return {
+              tenant_id: l.tenant_id,
+              name:      profileMap[l.tenant_id] ?? '—',
+              house,
+              room_number: room?.room_number ?? '—',
+              start_date:  l.start_date,
+              end_date:    l.end_date,
+              monthly_rent: l.monthly_rent,
+              lease_id: l.id,
+              room_id: l.room_id,
+            }
+          })
+        }
+      }
+
+      document.getElementById('content').innerHTML = `
+        <div class="flex items-center justify-between mb-8">
+          <h1 class="text-2xl font-bold text-gray-900">${t('tenants')}</h1>
+          <button onclick="showInvite()" class="${btnP}">${t('add_tenant')}</button>
+        </div>
+
+        ${!rows.length ? `
+          <div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
+            <div class="text-4xl mb-4">👤</div>
+            <p class="text-gray-500">${t('no_tenants')}</p>
+            <button onclick="showInvite()" class="${btnP} mt-5">${t('add_tenant')}</button>
+          </div>` : `
+          <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+            <table class="w-full text-sm">
+              <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                <tr>
+                  <th class="px-6 py-3 text-left">${t('name')}</th>
+                  <th class="px-6 py-3 text-left">${t('house_label')}</th>
+                  <th class="px-6 py-3 text-left">${t('room_label')}</th>
+                  <th class="px-6 py-3 text-left">${t('lease_period')}</th>
+                  <th class="px-6 py-3 text-right">${t('monthly_rent')}</th>
+                  <th class="px-6 py-3 text-center">${t('actions')}</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                ${rows.map(r => `
+                  <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                      <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 text-xs font-bold">
+                          ${r.name.charAt(0).toUpperCase()}
+                        </div>
+                        ${r.name}
+                      </div>
+                    </td>
+                    <td class="px-6 py-4 text-gray-600">${r.house}</td>
+                    <td class="px-6 py-4 text-gray-600">${r.room_number}</td>
+                    <td class="px-6 py-4 text-gray-600 text-xs">
+                      ${formatDate(r.start_date)} → ${formatDate(r.end_date)}
+                    </td>
+                    <td class="px-6 py-4 text-right font-medium text-indigo-700">${formatCurrency(r.monthly_rent)}</td>
+                    <td class="px-6 py-4 text-center">
+                      <a href="room-detail.html?id=${r.room_id}"
+                        class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-medium transition">
+                        View Room
+                      </a>
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`}
+      `
+    }
+
+    window.showInvite = () => {
+      openModal(t('add_tenant'), `
+        <div class="bg-blue-50 text-blue-800 text-sm px-4 py-3 rounded-xl mb-2">
+          ℹ️ ${t('tenant_invite_info')}
+        </div>
+        <div><label class="${lbl}">${t('tenant_name')} *</label>
+          <input id="f-name" class="${inp}" placeholder="Anna Müller"/></div>
+        <div><label class="${lbl}">${t('tenant_email')} *</label>
+          <input id="f-email" type="email" class="${inp}" placeholder="tenant@example.com"/></div>`,
+        `<button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
+         <button onclick="inviteTenant()" class="${btnP}">${t('add_tenant')}</button>`)
+    }
+
+    window.inviteTenant = async () => {
+      const name  = document.getElementById('f-name').value.trim()
+      const email = document.getElementById('f-email').value.trim()
+      if (!name || !email) { toast(t('error'), 'error'); return }
+
+      // Call the Supabase Edge Function to invite the tenant
+      const { data: { session } } = await supabase.auth.getSession()
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/create-tenant`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ name, email }),
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          toast(body.error ?? t('error'), 'error')
+          return
+        }
+        toast(t('success'))
+        closeModal()
+        await load()
+      } catch (err) {
+        toast(t('error'), 'error')
+        console.error(err)
+      }
+    }
+
+    window.closeModal = closeModal
+
+    await load()
+  </script>
+</body>
+</html>

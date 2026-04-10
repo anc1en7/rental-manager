@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Rent Ledger — RentManager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="flex min-h-screen">
+    <aside id="sidebar" class="w-56 bg-white border-r border-gray-100 flex-shrink-0 flex flex-col"></aside>
+    <main class="flex-1 p-8 min-w-0">
+      <div id="content" class="text-gray-400 text-sm">Loading…</div>
+    </main>
+  </div>
+
+  <script type="module">
+    import { supabase, setupOwnerPage, t, openModal, closeModal, toast, badge,
+             formatCurrency, formatDate, inp, lbl, btnP, btnS } from '../js/utils.js'
+
+    const user = await setupOwnerPage('rent')
+    if (!user) throw new Error('no user')
+
+    let _allRecords = [], _houses = []
+
+    async function loadAll() {
+      const { data: houses } = await supabase.from('houses').select('id,name').eq('owner_id', user.id).order('name')
+      _houses = houses ?? []
+      const houseIds = _houses.map(h => h.id)
+      _allRecords = []
+
+      if (!houseIds.length) { render(); return }
+
+      const { data: rooms } = await supabase.from('rooms').select('id,house_id,room_number').in('house_id', houseIds)
+      if (!rooms?.length) { render(); return }
+
+      const { data: leases } = await supabase
+        .from('leases')
+        .select('id,room_id,tenant_id')
+        .in('room_id', rooms.map(r => r.id))
+      if (!leases?.length) { render(); return }
+
+      const tenantIds = [...new Set(leases.map(l => l.tenant_id))]
+      const { data: profiles } = await supabase.from('profiles').select('id,name').in('id', tenantIds)
+      const profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.name]))
+      const roomMap    = Object.fromEntries(rooms.map(r => [r.id, r]))
+      const houseMap   = Object.fromEntries(_houses.map(h => [h.id, h.name]))
+      const leaseMap   = Object.fromEntries(leases.map(l => [l.id, l]))
+
+      const { data: recs } = await supabase
+        .from('rent_records')
+        .select('*')
+        .in('lease_id', leases.map(l => l.id))
+        .order('due_date', { ascending: false })
+
+      _allRecords = (recs ?? []).map(rec => {
+        const lease   = leaseMap[rec.lease_id] ?? {}
+        const room    = roomMap[lease.room_id]  ?? {}
+        const house_name = houseMap[room.house_id] ?? '—'
+        const tenant_name = profileMap[lease.tenant_id] ?? '—'
+        return { ...rec, house_name, house_id: room.house_id, room_number: room.room_number ?? '—', tenant_name }
+      })
+
+      render()
+    }
+
+    function render() {
+      const hFilter  = document.getElementById('f-house')?.value ?? ''
+      const mFilter  = document.getElementById('f-month')?.value ?? ''
+      const stFilter = document.getElementById('f-status')?.value ?? ''
+
+      let rows = _allRecords
+      if (hFilter)  rows = rows.filter(r => r.house_id === hFilter)
+      if (mFilter)  rows = rows.filter(r => r.due_date?.slice(0,7) === mFilter)
+      if (stFilter) rows = rows.filter(r => r.status === stFilter)
+
+      const totalDue  = rows.reduce((s, r) => s + (+r.amount_due  || 0), 0)
+      const totalPaid = rows.reduce((s, r) => s + (+r.amount_paid || 0), 0)
+      const outstanding = totalDue - totalPaid
+
+      // Build unique months for filter dropdown
+      const months = [...new Set(_allRecords.map(r => r.due_date?.slice(0,7)).filter(Boolean))].sort().reverse()
+
+      document.getElementById('content').innerHTML = `
+        <div class="mb-8">
+          <h1 class="text-2xl font-bold text-gray-900">${t('rent')}</h1>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">
+          <select id="f-house" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">${t('all_houses')}</option>
+            ${_houses.map(h => `<option value="${h.id}" ${hFilter === h.id ? 'selected':''}>${h.name}</option>`).join('')}
+          </select>
+          <select id="f-month" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">${t('all_months')}</option>
+            ${months.map(m => `<option value="${m}" ${mFilter === m ? 'selected':''}>${m}</option>`).join('')}
+          </select>
+          <select id="f-status" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            <option value="">${t('all_statuses')}</option>
+            <option value="pending"  ${stFilter==='pending'  ?'selected':''}>${t('pending')}</option>
+            <option value="partial"  ${stFilter==='partial'  ?'selected':''}>${t('partial')}</option>
+            <option value="paid"     ${stFilter==='paid'     ?'selected':''}>${t('paid')}</option>
+          </select>
+        </div>
+
+        <!-- Summary strip -->
+        <div class="grid grid-cols-3 gap-4 mb-6">
+          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 mb-1">${t('total_due')}</p>
+            <p class="text-xl font-bold text-gray-900">${formatCurrency(totalDue)}</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 mb-1">${t('total_paid')}</p>
+            <p class="text-xl font-bold text-emerald-600">${formatCurrency(totalPaid)}</p>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
+            <p class="text-xs text-gray-500 mb-1">${t('outstanding')}</p>
+            <p class="text-xl font-bold ${outstanding > 0 ? 'text-amber-600' : 'text-gray-900'}">${formatCurrency(outstanding)}</p>
+          </div>
+        </div>
+
+        <!-- Table -->
+        <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          ${!rows.length ? `
+            <div class="px-6 py-12 text-center text-gray-400 text-sm">${t('no_rent_records_filtered')}</div>` : `
+            <div class="overflow-x-auto">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+                  <tr>
+                    <th class="px-5 py-3 text-left">${t('tenant_label')}</th>
+                    <th class="px-5 py-3 text-left">${t('house_label')} / ${t('room_label')}</th>
+                    <th class="px-5 py-3 text-left">${t('due_date')}</th>
+                    <th class="px-5 py-3 text-right">${t('amount_due')}</th>
+                    <th class="px-5 py-3 text-right">${t('amount_paid')}</th>
+                    <th class="px-5 py-3 text-center">${t('status')}</th>
+                    <th class="px-5 py-3 text-center">${t('actions')}</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  ${rows.map(rec => `
+                    <tr class="hover:bg-gray-50">
+                      <td class="px-5 py-3 font-medium">
+                        <div class="flex items-center gap-2">
+                          <div class="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center text-xs font-bold text-indigo-700">
+                            ${rec.tenant_name.charAt(0).toUpperCase()}
+                          </div>
+                          ${rec.tenant_name}
+                        </div>
+                      </td>
+                      <td class="px-5 py-3 text-gray-600 text-xs">
+                        <div>${rec.house_name}</div>
+                        <div class="text-gray-400">${t('room_label')} ${rec.room_number}</div>
+                      </td>
+                      <td class="px-5 py-3 text-gray-700">${formatDate(rec.due_date)}</td>
+                      <td class="px-5 py-3 text-right font-medium">${formatCurrency(rec.amount_due)}</td>
+                      <td class="px-5 py-3 text-right ${rec.status === 'paid' ? 'text-emerald-600 font-medium' : 'text-gray-600'}">${formatCurrency(rec.amount_paid)}</td>
+                      <td class="px-5 py-3 text-center">${badge(rec.status)}</td>
+                      <td class="px-5 py-3 text-center">
+                        ${rec.status !== 'paid'
+                          ? `<button onclick="showPayment('${rec.id}',${rec.amount_due})"
+                               class="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-medium transition whitespace-nowrap">${t('mark_as_paid')}</button>`
+                          : `<span class="text-xs text-gray-400">${formatDate(rec.paid_at)}</span>`}
+                      </td>
+                    </tr>`).join('')}
+                </tbody>
+              </table>
+            </div>`}
+        </div>`
+    }
+
+    window.applyFilter = render
+
+    window.showPayment = (recId, amountDue) => {
+      openModal(t('mark_as_paid'), `
+        <div><label class="${lbl}">${t('payment_amount')} *</label>
+          <input id="f-paid" type="number" step="0.01" class="${inp}" value="${amountDue}"/></div>
+        <div><label class="${lbl}">${t('notes')}</label>
+          <input id="f-notes" class="${inp}" placeholder="e.g. Bank transfer"/></div>`,
+        `<button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
+         <button onclick="savePayment('${recId}',${amountDue})" class="${btnP}">${t('save')}</button>`)
+    }
+
+    window.savePayment = async (recId, amountDue) => {
+      const paid  = parseFloat(document.getElementById('f-paid').value)
+      const notes = document.getElementById('f-notes').value.trim() || null
+      if (isNaN(paid) || paid < 0) { toast(t('error'), 'error'); return }
+      const status = paid >= amountDue ? 'paid' : paid > 0 ? 'partial' : 'pending'
+      const { error } = await supabase.from('rent_records').update({
+        amount_paid: paid, status, notes, paid_at: paid > 0 ? new Date().toISOString() : null
+      }).eq('id', recId)
+      if (error) { toast(t('error'), 'error'); return }
+      // Update in-memory
+      const idx = _allRecords.findIndex(r => r.id === recId)
+      if (idx !== -1) Object.assign(_allRecords[idx], { amount_paid: paid, status, notes })
+      toast(t('success'))
+      closeModal()
+      render()
+    }
+
+    window.closeModal = closeModal
+
+    await loadAll()
+  </script>
+</body>
+</html>
