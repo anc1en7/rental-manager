@@ -6,6 +6,7 @@
   <title>RentManager — Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./js/app.js"></script>
 </head>
 <body class="bg-gradient-to-br from-indigo-50 via-white to-slate-50 min-h-screen flex items-center justify-center p-4">
 
@@ -52,61 +53,61 @@
     <p class="text-center text-xs text-gray-400 mt-6">RentManager &copy; 2025</p>
   </div>
 
-  <script type="module">
-    import { supabase } from './js/supabase.js'
-    import { translations, getLang, setLang } from './js/i18n.js'
+  <script>
+    (function() {
+      var t = RM.t
 
-    const T = key => (translations[getLang()]?.[key] ?? translations.en[key] ?? key)
+      function applyLang() {
+        var lang = RM.getLang()
+        document.documentElement.lang = lang
+        document.getElementById('lbl-email').textContent  = t('email')
+        document.getElementById('lbl-pw').textContent     = t('password')
+        document.getElementById('submit-btn').textContent = t('login')
+        document.getElementById('lang-btn').textContent   = lang === 'en' ? 'DE' : 'EN'
+      }
+      applyLang()
 
-    function applyLang() {
-      const lang = getLang()
-      document.documentElement.lang = lang
-      document.getElementById('lbl-email').textContent = T('email')
-      document.getElementById('lbl-pw').textContent    = T('password')
-      document.getElementById('submit-btn').textContent = T('login')
-      document.getElementById('lang-btn').textContent   = lang === 'en' ? 'DE' : 'EN'
-    }
-    applyLang()
-
-    document.getElementById('lang-btn').addEventListener('click', () =>
-      setLang(getLang() === 'en' ? 'de' : 'en'))
-
-    // If already logged in, redirect immediately
-    ;(async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      const { data: profile } = await supabase
-        .from('profiles').select('role').eq('id', session.user.id).single()
-      window.location.href = profile?.role === 'owner'
-        ? 'owner/dashboard.html' : 'tenant/dashboard.html'
-    })()
-
-    document.getElementById('form').addEventListener('submit', async e => {
-      e.preventDefault()
-      const btn = document.getElementById('submit-btn')
-      const err = document.getElementById('err')
-      err.classList.add('hidden')
-      btn.textContent = T('loading')
-      btn.disabled = true
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email:    document.getElementById('email').value.trim(),
-        password: document.getElementById('pw').value,
+      document.getElementById('lang-btn').addEventListener('click', function() {
+        RM.setLang(RM.getLang() === 'en' ? 'de' : 'en')
       })
 
-      if (error) {
-        err.textContent = T('login_error')
-        err.classList.remove('hidden')
-        btn.textContent = T('login')
-        btn.disabled = false
-        return
-      }
+      // If already logged in, redirect immediately
+      ;(async function() {
+        var sessionRes = await RM.db.auth.getSession()
+        if (!sessionRes.data.session) return
+        var profRes = await RM.db.from('profiles').select('role').eq('id', sessionRes.data.session.user.id).single()
+        window.location.href = profRes.data?.role === 'owner'
+          ? 'owner/dashboard.html' : 'tenant/dashboard.html'
+      })()
 
-      const { data: profile } = await supabase
-        .from('profiles').select('role').eq('id', data.user.id).single()
-      window.location.href = profile?.role === 'owner'
-        ? 'owner/dashboard.html' : 'tenant/dashboard.html'
-    })
+      document.getElementById('form').addEventListener('submit', function(e) {
+        e.preventDefault()
+        var btn = document.getElementById('submit-btn')
+        var err = document.getElementById('err')
+        err.classList.add('hidden')
+        btn.textContent = t('loading')
+        btn.disabled = true
+
+        ;(async function() {
+          var res = await RM.db.auth.signInWithPassword({
+            email:    document.getElementById('email').value.trim(),
+            password: document.getElementById('pw').value,
+          })
+
+          if (res.error) {
+            err.textContent = t('login_error')
+            err.classList.remove('hidden')
+            btn.textContent = t('login')
+            btn.disabled = false
+            return
+          }
+
+          var profRes = await RM.db.from('profiles').select('role').eq('id', res.data.user.id).single()
+          window.location.href = profRes.data?.role === 'owner'
+            ? 'owner/dashboard.html' : 'tenant/dashboard.html'
+        })()
+      })
+    })()
   </script>
 </body>
 </html>

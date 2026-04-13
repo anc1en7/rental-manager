@@ -6,6 +6,7 @@
   <title>Rent Ledger — RentManager</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/app.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="flex min-h-screen">
@@ -15,193 +16,180 @@
     </main>
   </div>
 
-  <script type="module">
-    import { supabase, setupOwnerPage, t, openModal, closeModal, toast, badge,
-             formatCurrency, formatDate, inp, lbl, btnP, btnS } from '../js/utils.js'
+  <script>
+    (async function() {
+      var t = RM.t, inp = RM.inp, lbl = RM.lbl, btnP = RM.btnP, btnS = RM.btnS
+      var formatCurrency = RM.formatCurrency, formatDate = RM.formatDate, badge = RM.badge
 
-    const user = await setupOwnerPage('rent')
-    if (!user) throw new Error('no user')
+      var user = await RM.setupOwnerPage('rent')
+      if (!user) return
 
-    let _allRecords = [], _houses = []
+      var _allRecords = [], _houses = []
 
-    async function loadAll() {
-      const { data: houses } = await supabase.from('houses').select('id,name').eq('owner_id', user.id).order('name')
-      _houses = houses ?? []
-      const houseIds = _houses.map(h => h.id)
-      _allRecords = []
+      async function loadAll() {
+        var housesRes = await RM.db.from('houses').select('id,name').eq('owner_id', user.id).order('name')
+        _houses = housesRes.data ?? []
+        var houseIds = _houses.map(function(h) { return h.id })
+        _allRecords = []
 
-      if (!houseIds.length) { render(); return }
+        if (!houseIds.length) { render(); return }
 
-      const { data: rooms } = await supabase.from('rooms').select('id,house_id,room_number').in('house_id', houseIds)
-      if (!rooms?.length) { render(); return }
+        var roomsRes = await RM.db.from('rooms').select('id,house_id,room_number').in('house_id', houseIds)
+        var rooms = roomsRes.data ?? []
+        if (!rooms.length) { render(); return }
 
-      const { data: leases } = await supabase
-        .from('leases')
-        .select('id,room_id,tenant_id')
-        .in('room_id', rooms.map(r => r.id))
-      if (!leases?.length) { render(); return }
+        var leasesRes = await RM.db.from('leases')
+          .select('id,room_id,tenant_id')
+          .in('room_id', rooms.map(function(r) { return r.id }))
+        var leases = leasesRes.data ?? []
+        if (!leases.length) { render(); return }
 
-      const tenantIds = [...new Set(leases.map(l => l.tenant_id))]
-      const { data: profiles } = await supabase.from('profiles').select('id,name').in('id', tenantIds)
-      const profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.name]))
-      const roomMap    = Object.fromEntries(rooms.map(r => [r.id, r]))
-      const houseMap   = Object.fromEntries(_houses.map(h => [h.id, h.name]))
-      const leaseMap   = Object.fromEntries(leases.map(l => [l.id, l]))
+        var tenantIds = []
+        leases.forEach(function(l) { if (tenantIds.indexOf(l.tenant_id) === -1) tenantIds.push(l.tenant_id) })
+        var profilesRes = await RM.db.from('profiles').select('id,name').in('id', tenantIds)
+        var profileMap = Object.fromEntries((profilesRes.data ?? []).map(function(p) { return [p.id, p.name] }))
+        var roomMap    = Object.fromEntries(rooms.map(function(r) { return [r.id, r] }))
+        var houseMap   = Object.fromEntries(_houses.map(function(h) { return [h.id, h.name] }))
+        var leaseMap   = Object.fromEntries(leases.map(function(l) { return [l.id, l] }))
 
-      const { data: recs } = await supabase
-        .from('rent_records')
-        .select('*')
-        .in('lease_id', leases.map(l => l.id))
-        .order('due_date', { ascending: false })
+        var recsRes = await RM.db.from('rent_records')
+          .select('*')
+          .in('lease_id', leases.map(function(l) { return l.id }))
+          .order('due_date', { ascending: false })
 
-      _allRecords = (recs ?? []).map(rec => {
-        const lease   = leaseMap[rec.lease_id] ?? {}
-        const room    = roomMap[lease.room_id]  ?? {}
-        const house_name = houseMap[room.house_id] ?? '—'
-        const tenant_name = profileMap[lease.tenant_id] ?? '—'
-        return { ...rec, house_name, house_id: room.house_id, room_number: room.room_number ?? '—', tenant_name }
-      })
+        _allRecords = (recsRes.data ?? []).map(function(rec) {
+          var lease      = leaseMap[rec.lease_id] ?? {}
+          var room       = roomMap[lease.room_id]  ?? {}
+          var house_name = houseMap[room.house_id] ?? '—'
+          var tenant_name = profileMap[lease.tenant_id] ?? '—'
+          return Object.assign({}, rec, { house_name: house_name, house_id: room.house_id, room_number: room.room_number ?? '—', tenant_name: tenant_name })
+        })
 
-      render()
-    }
+        render()
+      }
 
-    function render() {
-      const hFilter  = document.getElementById('f-house')?.value ?? ''
-      const mFilter  = document.getElementById('f-month')?.value ?? ''
-      const stFilter = document.getElementById('f-status')?.value ?? ''
+      function render() {
+        var hFilter  = document.getElementById('f-house')?.value ?? ''
+        var mFilter  = document.getElementById('f-month')?.value ?? ''
+        var stFilter = document.getElementById('f-status')?.value ?? ''
 
-      let rows = _allRecords
-      if (hFilter)  rows = rows.filter(r => r.house_id === hFilter)
-      if (mFilter)  rows = rows.filter(r => r.due_date?.slice(0,7) === mFilter)
-      if (stFilter) rows = rows.filter(r => r.status === stFilter)
+        var rows = _allRecords
+        if (hFilter)  rows = rows.filter(function(r) { return r.house_id === hFilter })
+        if (mFilter)  rows = rows.filter(function(r) { return r.due_date?.slice(0,7) === mFilter })
+        if (stFilter) rows = rows.filter(function(r) { return r.status === stFilter })
 
-      const totalDue  = rows.reduce((s, r) => s + (+r.amount_due  || 0), 0)
-      const totalPaid = rows.reduce((s, r) => s + (+r.amount_paid || 0), 0)
-      const outstanding = totalDue - totalPaid
+        var totalDue    = rows.reduce(function(s, r) { return s + (+r.amount_due  || 0) }, 0)
+        var totalPaid   = rows.reduce(function(s, r) { return s + (+r.amount_paid || 0) }, 0)
+        var outstanding = totalDue - totalPaid
 
-      // Build unique months for filter dropdown
-      const months = [...new Set(_allRecords.map(r => r.due_date?.slice(0,7)).filter(Boolean))].sort().reverse()
+        var months = []
+        _allRecords.forEach(function(r) {
+          var m = r.due_date?.slice(0,7)
+          if (m && months.indexOf(m) === -1) months.push(m)
+        })
+        months.sort().reverse()
 
-      document.getElementById('content').innerHTML = `
-        <div class="mb-8">
-          <h1 class="text-2xl font-bold text-gray-900">${t('rent')}</h1>
-        </div>
+        document.getElementById('content').innerHTML =
+          '<div class="mb-8">' +
+            '<h1 class="text-2xl font-bold text-gray-900">' + t('rent') + '</h1>' +
+          '</div>' +
 
-        <!-- Filters -->
-        <div class="bg-white rounded-2xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">
-          <select id="f-house" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">${t('all_houses')}</option>
-            ${_houses.map(h => `<option value="${h.id}" ${hFilter === h.id ? 'selected':''}>${h.name}</option>`).join('')}
-          </select>
-          <select id="f-month" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">${t('all_months')}</option>
-            ${months.map(m => `<option value="${m}" ${mFilter === m ? 'selected':''}>${m}</option>`).join('')}
-          </select>
-          <select id="f-status" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">
-            <option value="">${t('all_statuses')}</option>
-            <option value="pending"  ${stFilter==='pending'  ?'selected':''}>${t('pending')}</option>
-            <option value="partial"  ${stFilter==='partial'  ?'selected':''}>${t('partial')}</option>
-            <option value="paid"     ${stFilter==='paid'     ?'selected':''}>${t('paid')}</option>
-          </select>
-        </div>
+          '<div class="bg-white rounded-2xl border border-gray-200 p-4 mb-6 flex flex-wrap gap-3">' +
+            '<select id="f-house" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">' +
+              '<option value="">' + t('all_houses') + '</option>' +
+              _houses.map(function(h) { return '<option value="' + h.id + '" ' + (hFilter === h.id ? 'selected' : '') + '>' + h.name + '</option>' }).join('') +
+            '</select>' +
+            '<select id="f-month" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">' +
+              '<option value="">' + t('all_months') + '</option>' +
+              months.map(function(m) { return '<option value="' + m + '" ' + (mFilter === m ? 'selected' : '') + '>' + m + '</option>' }).join('') +
+            '</select>' +
+            '<select id="f-status" onchange="applyFilter()" class="text-sm border border-gray-300 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500">' +
+              '<option value="">' + t('all_statuses') + '</option>' +
+              '<option value="pending"' + (stFilter==='pending' ? ' selected' : '') + '>' + t('pending') + '</option>' +
+              '<option value="partial"' + (stFilter==='partial' ? ' selected' : '') + '>' + t('partial') + '</option>' +
+              '<option value="paid"'    + (stFilter==='paid'    ? ' selected' : '') + '>' + t('paid')    + '</option>' +
+            '</select>' +
+          '</div>' +
 
-        <!-- Summary strip -->
-        <div class="grid grid-cols-3 gap-4 mb-6">
-          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 mb-1">${t('total_due')}</p>
-            <p class="text-xl font-bold text-gray-900">${formatCurrency(totalDue)}</p>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 mb-1">${t('total_paid')}</p>
-            <p class="text-xl font-bold text-emerald-600">${formatCurrency(totalPaid)}</p>
-          </div>
-          <div class="bg-white rounded-2xl border border-gray-200 px-5 py-4">
-            <p class="text-xs text-gray-500 mb-1">${t('outstanding')}</p>
-            <p class="text-xl font-bold ${outstanding > 0 ? 'text-amber-600' : 'text-gray-900'}">${formatCurrency(outstanding)}</p>
-          </div>
-        </div>
+          '<div class="grid grid-cols-3 gap-4 mb-6">' +
+            '<div class="bg-white rounded-2xl border border-gray-200 px-5 py-4"><p class="text-xs text-gray-500 mb-1">' + t('total_due') + '</p><p class="text-xl font-bold text-gray-900">' + formatCurrency(totalDue) + '</p></div>' +
+            '<div class="bg-white rounded-2xl border border-gray-200 px-5 py-4"><p class="text-xs text-gray-500 mb-1">' + t('total_paid') + '</p><p class="text-xl font-bold text-emerald-600">' + formatCurrency(totalPaid) + '</p></div>' +
+            '<div class="bg-white rounded-2xl border border-gray-200 px-5 py-4"><p class="text-xs text-gray-500 mb-1">' + t('outstanding') + '</p><p class="text-xl font-bold ' + (outstanding > 0 ? 'text-amber-600' : 'text-gray-900') + '">' + formatCurrency(outstanding) + '</p></div>' +
+          '</div>' +
 
-        <!-- Table -->
-        <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-          ${!rows.length ? `
-            <div class="px-6 py-12 text-center text-gray-400 text-sm">${t('no_rent_records_filtered')}</div>` : `
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                  <tr>
-                    <th class="px-5 py-3 text-left">${t('tenant_label')}</th>
-                    <th class="px-5 py-3 text-left">${t('house_label')} / ${t('room_label')}</th>
-                    <th class="px-5 py-3 text-left">${t('due_date')}</th>
-                    <th class="px-5 py-3 text-right">${t('amount_due')}</th>
-                    <th class="px-5 py-3 text-right">${t('amount_paid')}</th>
-                    <th class="px-5 py-3 text-center">${t('status')}</th>
-                    <th class="px-5 py-3 text-center">${t('actions')}</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  ${rows.map(rec => `
-                    <tr class="hover:bg-gray-50">
-                      <td class="px-5 py-3 font-medium">
-                        <div class="flex items-center gap-2">
-                          <div class="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center text-xs font-bold text-indigo-700">
-                            ${rec.tenant_name.charAt(0).toUpperCase()}
-                          </div>
-                          ${rec.tenant_name}
-                        </div>
-                      </td>
-                      <td class="px-5 py-3 text-gray-600 text-xs">
-                        <div>${rec.house_name}</div>
-                        <div class="text-gray-400">${t('room_label')} ${rec.room_number}</div>
-                      </td>
-                      <td class="px-5 py-3 text-gray-700">${formatDate(rec.due_date)}</td>
-                      <td class="px-5 py-3 text-right font-medium">${formatCurrency(rec.amount_due)}</td>
-                      <td class="px-5 py-3 text-right ${rec.status === 'paid' ? 'text-emerald-600 font-medium' : 'text-gray-600'}">${formatCurrency(rec.amount_paid)}</td>
-                      <td class="px-5 py-3 text-center">${badge(rec.status)}</td>
-                      <td class="px-5 py-3 text-center">
-                        ${rec.status !== 'paid'
-                          ? `<button onclick="showPayment('${rec.id}',${rec.amount_due})"
-                               class="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-medium transition whitespace-nowrap">${t('mark_as_paid')}</button>`
-                          : `<span class="text-xs text-gray-400">${formatDate(rec.paid_at)}</span>`}
-                      </td>
-                    </tr>`).join('')}
-                </tbody>
-              </table>
-            </div>`}
-        </div>`
-    }
+          '<div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">' +
+            (!rows.length
+              ? '<div class="px-6 py-12 text-center text-gray-400 text-sm">' + t('no_rent_records_filtered') + '</div>'
+              : '<div class="overflow-x-auto">' +
+                  '<table class="w-full text-sm">' +
+                    '<thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">' +
+                      '<tr>' +
+                        '<th class="px-5 py-3 text-left">' + t('tenant_label') + '</th>' +
+                        '<th class="px-5 py-3 text-left">' + t('house_label') + ' / ' + t('room_label') + '</th>' +
+                        '<th class="px-5 py-3 text-left">' + t('due_date') + '</th>' +
+                        '<th class="px-5 py-3 text-right">' + t('amount_due') + '</th>' +
+                        '<th class="px-5 py-3 text-right">' + t('amount_paid') + '</th>' +
+                        '<th class="px-5 py-3 text-center">' + t('status') + '</th>' +
+                        '<th class="px-5 py-3 text-center">' + t('actions') + '</th>' +
+                      '</tr>' +
+                    '</thead>' +
+                    '<tbody class="divide-y divide-gray-100">' +
+                      rows.map(function(rec) {
+                        return '<tr class="hover:bg-gray-50">' +
+                          '<td class="px-5 py-3 font-medium">' +
+                            '<div class="flex items-center gap-2">' +
+                              '<div class="w-6 h-6 bg-indigo-100 rounded-full flex items-center justify-center text-xs font-bold text-indigo-700">' + rec.tenant_name.charAt(0).toUpperCase() + '</div>' +
+                              rec.tenant_name +
+                            '</div>' +
+                          '</td>' +
+                          '<td class="px-5 py-3 text-gray-600 text-xs"><div>' + rec.house_name + '</div><div class="text-gray-400">' + t('room_label') + ' ' + rec.room_number + '</div></td>' +
+                          '<td class="px-5 py-3 text-gray-700">' + formatDate(rec.due_date) + '</td>' +
+                          '<td class="px-5 py-3 text-right font-medium">' + formatCurrency(rec.amount_due) + '</td>' +
+                          '<td class="px-5 py-3 text-right ' + (rec.status === 'paid' ? 'text-emerald-600 font-medium' : 'text-gray-600') + '">' + formatCurrency(rec.amount_paid) + '</td>' +
+                          '<td class="px-5 py-3 text-center">' + badge(rec.status) + '</td>' +
+                          '<td class="px-5 py-3 text-center">' +
+                            (rec.status !== 'paid'
+                              ? '<button onclick="showPayment(\'' + rec.id + '\',' + rec.amount_due + ')" class="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-medium transition whitespace-nowrap">' + t('mark_as_paid') + '</button>'
+                              : '<span class="text-xs text-gray-400">' + formatDate(rec.paid_at) + '</span>') +
+                          '</td>' +
+                        '</tr>'
+                      }).join('') +
+                    '</tbody>' +
+                  '</table>' +
+                '</div>') +
+          '</div>'
+      }
 
-    window.applyFilter = render
+      window.applyFilter = render
 
-    window.showPayment = (recId, amountDue) => {
-      openModal(t('mark_as_paid'), `
-        <div><label class="${lbl}">${t('payment_amount')} *</label>
-          <input id="f-paid" type="number" step="0.01" class="${inp}" value="${amountDue}"/></div>
-        <div><label class="${lbl}">${t('notes')}</label>
-          <input id="f-notes" class="${inp}" placeholder="e.g. Bank transfer"/></div>`,
-        `<button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
-         <button onclick="savePayment('${recId}',${amountDue})" class="${btnP}">${t('save')}</button>`)
-    }
+      window.showPayment = function(recId, amountDue) {
+        RM.openModal(t('mark_as_paid'),
+          '<div><label class="' + lbl + '">' + t('payment_amount') + ' *</label>' +
+            '<input id="f-paid" type="number" step="0.01" class="' + inp + '" value="' + amountDue + '"/></div>' +
+          '<div><label class="' + lbl + '">' + t('notes') + '</label>' +
+            '<input id="f-notes" class="' + inp + '" placeholder="e.g. Bank transfer"/></div>',
+          '<button onclick="RM.closeModal()" class="' + btnS + '">' + t('cancel') + '</button>' +
+          ' <button onclick="savePayment(\'' + recId + '\',' + amountDue + ')" class="' + btnP + '">' + t('save') + '</button>')
+      }
 
-    window.savePayment = async (recId, amountDue) => {
-      const paid  = parseFloat(document.getElementById('f-paid').value)
-      const notes = document.getElementById('f-notes').value.trim() || null
-      if (isNaN(paid) || paid < 0) { toast(t('error'), 'error'); return }
-      const status = paid >= amountDue ? 'paid' : paid > 0 ? 'partial' : 'pending'
-      const { error } = await supabase.from('rent_records').update({
-        amount_paid: paid, status, notes, paid_at: paid > 0 ? new Date().toISOString() : null
-      }).eq('id', recId)
-      if (error) { toast(t('error'), 'error'); return }
-      // Update in-memory
-      const idx = _allRecords.findIndex(r => r.id === recId)
-      if (idx !== -1) Object.assign(_allRecords[idx], { amount_paid: paid, status, notes })
-      toast(t('success'))
-      closeModal()
-      render()
-    }
+      window.savePayment = async function(recId, amountDue) {
+        var paid  = parseFloat(document.getElementById('f-paid').value)
+        var notes = document.getElementById('f-notes').value.trim() || null
+        if (isNaN(paid) || paid < 0) { RM.toast(t('error'), 'error'); return }
+        var status = paid >= amountDue ? 'paid' : paid > 0 ? 'partial' : 'pending'
+        var res = await RM.db.from('rent_records').update({
+          amount_paid: paid, status: status, notes: notes, paid_at: paid > 0 ? new Date().toISOString() : null
+        }).eq('id', recId)
+        if (res.error) { RM.toast(t('error'), 'error'); return }
+        var idx = _allRecords.findIndex(function(r) { return r.id === recId })
+        if (idx !== -1) Object.assign(_allRecords[idx], { amount_paid: paid, status: status, notes: notes })
+        RM.toast(t('success'))
+        RM.closeModal()
+        render()
+      }
 
-    window.closeModal = closeModal
-
-    await loadAll()
+      await loadAll()
+    })()
   </script>
 </body>
 </html>

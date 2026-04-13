@@ -6,6 +6,7 @@
   <title>House — RentManager</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/app.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="flex min-h-screen">
@@ -15,166 +16,158 @@
     </main>
   </div>
 
-  <script type="module">
-    import { supabase, setupOwnerPage, t, openModal, closeModal, toast, badge, formatCurrency, inp, lbl, btnP, btnS, btnD } from '../js/utils.js'
+  <script>
+    (async function() {
+      var t = RM.t, inp = RM.inp, lbl = RM.lbl, btnP = RM.btnP, btnS = RM.btnS, btnD = RM.btnD
+      var formatCurrency = RM.formatCurrency, badge = RM.badge
 
-    const houseId = new URLSearchParams(location.search).get('id')
-    if (!houseId) { location.href = 'houses.html' }
+      var houseId = new URLSearchParams(location.search).get('id')
+      if (!houseId) { location.href = 'houses.html'; return }
 
-    const user = await setupOwnerPage('houses')
-    if (!user) throw new Error('no user')
+      var user = await RM.setupOwnerPage('houses')
+      if (!user) return
 
-    async function load() {
-      const [houseRes, roomsRes] = await Promise.all([
-        supabase.from('houses').select('*').eq('id', houseId).single(),
-        supabase.from('rooms').select('*').eq('house_id', houseId).order('room_number'),
-      ])
-      const house = houseRes.data
-      if (!house || house.owner_id !== user.id) { location.href = 'houses.html'; return }
-      const rooms = roomsRes.data ?? []
+      async function load() {
+        var houseRes = await RM.db.from('houses').select('*').eq('id', houseId).single()
+        var roomsRes = await RM.db.from('rooms').select('*').eq('house_id', houseId).order('room_number')
 
-      // Get active leases for these rooms
-      let leaseMap = {}
-      if (rooms.length) {
-        const { data: leases } = await supabase
-          .from('leases')
-          .select('id,room_id,tenant_id,start_date,end_date,monthly_rent')
-          .eq('status','active')
-          .in('room_id', rooms.map(r => r.id))
-        const tenantIds = [...new Set((leases ?? []).map(l => l.tenant_id))]
-        let profiles = []
-        if (tenantIds.length) {
-          const { data } = await supabase.from('profiles').select('id,name').in('id', tenantIds)
-          profiles = data ?? []
+        var house = houseRes.data
+        if (!house || house.owner_id !== user.id) { location.href = 'houses.html'; return }
+        var rooms = roomsRes.data ?? []
+
+        var leaseMap = {}
+        if (rooms.length) {
+          var lRes = await RM.db.from('leases')
+            .select('id,room_id,tenant_id,start_date,end_date,monthly_rent')
+            .eq('status','active')
+            .in('room_id', rooms.map(function(r) { return r.id }))
+          var leases = lRes.data ?? []
+          var tenantIds = []
+          leases.forEach(function(l) { if (tenantIds.indexOf(l.tenant_id) === -1) tenantIds.push(l.tenant_id) })
+          var profiles = []
+          if (tenantIds.length) {
+            var pRes = await RM.db.from('profiles').select('id,name').in('id', tenantIds)
+            profiles = pRes.data ?? []
+          }
+          leases.forEach(function(l) {
+            var profile = profiles.find(function(p) { return p.id === l.tenant_id })
+            leaseMap[l.room_id] = Object.assign({}, l, { tenant_name: profile ? profile.name : '—' })
+          })
         }
-        ;(leases ?? []).forEach(l => {
-          const profile = profiles.find(p => p.id === l.tenant_id)
-          leaseMap[l.room_id] = { ...l, tenant_name: profile?.name ?? '—' }
-        })
+
+        document.getElementById('content').innerHTML =
+          '<div class="flex items-start justify-between mb-8 gap-4">' +
+            '<div>' +
+              '<a href="houses.html" class="text-sm text-indigo-600 hover:text-indigo-700 mb-2 inline-block">← ' + t('houses') + '</a>' +
+              '<h1 class="text-2xl font-bold text-gray-900">' + house.name + '</h1>' +
+              '<p class="text-gray-500 text-sm mt-1">' + house.address + ', ' + house.city + ', ' + house.country + '</p>' +
+            '</div>' +
+            '<button onclick="showAddRoom()" class="' + btnP + ' flex-shrink-0">' + t('add_room') + '</button>' +
+          '</div>' +
+
+          (!rooms.length
+            ? '<div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">' +
+                '<div class="text-4xl mb-4">🚪</div>' +
+                '<p class="text-gray-500">' + t('no_rooms') + '</p>' +
+                '<button onclick="showAddRoom()" class="' + btnP + ' mt-5">' + t('add_room') + '</button>' +
+              '</div>'
+            : '<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">' +
+                rooms.map(function(room) {
+                  var lease = leaseMap[room.id]
+                  var isOccupied = !!lease
+                  return '<div class="bg-white rounded-2xl border border-gray-200 flex flex-col overflow-hidden hover:shadow-sm transition">' +
+                    '<a href="room-detail.html?id=' + room.id + '" class="flex-1 p-5 block group">' +
+                      '<div class="flex items-start justify-between mb-3">' +
+                        '<div class="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center text-lg">🚪</div>' +
+                        badge(isOccupied ? 'occupied' : 'vacant') +
+                      '</div>' +
+                      '<h3 class="font-semibold text-gray-900 group-hover:text-indigo-700">' + t('room_label') + ' ' + room.room_number + '</h3>' +
+                      '<p class="text-xs text-gray-500 mt-1">' + t('floor_label') + ' ' + room.floor + (room.area_sqm ? ' · ' + room.area_sqm + ' m²' : '') + '</p>' +
+                      '<p class="text-sm font-semibold text-indigo-700 mt-2">' + formatCurrency(room.monthly_rent) + ' ' + t('per_month') + '</p>' +
+                      (isOccupied ? '<p class="text-xs text-gray-500 mt-1">👤 ' + lease.tenant_name + '</p>' : '') +
+                      (room.utilities_included ? '<p class="text-xs text-emerald-600 mt-1">✓ ' + t('utilities_included') + '</p>' : '') +
+                    '</a>' +
+                    '<div class="flex border-t border-gray-100">' +
+                      '<button onclick=\'editRoom(' + JSON.stringify(room) + ')\' class="flex-1 text-xs py-2.5 text-indigo-600 hover:bg-indigo-50 font-medium transition">' + t('edit') + '</button>' +
+                      '<button onclick="deleteRoom(\'' + room.id + '\')" class="flex-1 text-xs py-2.5 text-red-600 hover:bg-red-50 font-medium transition border-l border-gray-100">' + t('delete') + '</button>' +
+                    '</div>' +
+                  '</div>'
+                }).join('') +
+              '</div>')
       }
 
-      document.getElementById('content').innerHTML = `
-        <!-- Header -->
-        <div class="flex items-start justify-between mb-8 gap-4">
-          <div>
-            <a href="houses.html" class="text-sm text-indigo-600 hover:text-indigo-700 mb-2 inline-block">← ${t('houses')}</a>
-            <h1 class="text-2xl font-bold text-gray-900">${house.name}</h1>
-            <p class="text-gray-500 text-sm mt-1">${house.address}, ${house.city}, ${house.country}</p>
-          </div>
-          <button onclick="showAddRoom()" class="${btnP} flex-shrink-0">${t('add_room')}</button>
-        </div>
-
-        <!-- Rooms grid -->
-        ${!rooms.length ? `
-          <div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
-            <div class="text-4xl mb-4">🚪</div>
-            <p class="text-gray-500">${t('no_rooms')}</p>
-            <button onclick="showAddRoom()" class="${btnP} mt-5">${t('add_room')}</button>
-          </div>` : `
-          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
-            ${rooms.map(room => {
-              const lease = leaseMap[room.id]
-              const isOccupied = !!lease
-              return `
-                <div class="bg-white rounded-2xl border border-gray-200 flex flex-col overflow-hidden hover:shadow-sm transition">
-                  <a href="room-detail.html?id=${room.id}" class="flex-1 p-5 block group">
-                    <div class="flex items-start justify-between mb-3">
-                      <div class="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center text-lg">🚪</div>
-                      ${badge(isOccupied ? 'occupied' : 'vacant')}
-                    </div>
-                    <h3 class="font-semibold text-gray-900 group-hover:text-indigo-700">
-                      ${t('room_label')} ${room.room_number}
-                    </h3>
-                    <p class="text-xs text-gray-500 mt-1">${t('floor_label')} ${room.floor}${room.area_sqm ? ` · ${room.area_sqm} m²` : ''}</p>
-                    <p class="text-sm font-semibold text-indigo-700 mt-2">${formatCurrency(room.monthly_rent)} ${t('per_month')}</p>
-                    ${isOccupied ? `<p class="text-xs text-gray-500 mt-1">👤 ${lease.tenant_name}</p>` : ''}
-                    ${room.utilities_included ? `<p class="text-xs text-emerald-600 mt-1">✓ ${t('utilities_included')}</p>` : ''}
-                  </a>
-                  <div class="flex border-t border-gray-100">
-                    <button onclick='editRoom(${JSON.stringify(room)})'
-                      class="flex-1 text-xs py-2.5 text-indigo-600 hover:bg-indigo-50 font-medium transition">${t('edit')}</button>
-                    <button onclick="deleteRoom('${room.id}')"
-                      class="flex-1 text-xs py-2.5 text-red-600 hover:bg-red-50 font-medium transition border-l border-gray-100">${t('delete')}</button>
-                  </div>
-                </div>`
-            }).join('')}
-          </div>`}
-      `
-    }
-
-    function roomForm(r = {}) {
-      const checked = r.utilities_included ? 'checked' : ''
-      return `
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="${lbl}">${t('room_number')} *</label>
-            <input id="f-num" class="${inp}" value="${r.room_number ?? ''}" placeholder="101"/></div>
-          <div><label class="${lbl}">${t('floor')}</label>
-            <input id="f-floor" type="number" class="${inp}" value="${r.floor ?? 0}"/></div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="${lbl}">${t('area_sqm')}</label>
-            <input id="f-area" type="number" step="0.01" class="${inp}" value="${r.area_sqm ?? ''}"/></div>
-          <div><label class="${lbl}">${t('monthly_rent')} *</label>
-            <input id="f-rent" type="number" step="0.01" class="${inp}" value="${r.monthly_rent ?? ''}"/></div>
-        </div>
-        <div class="flex items-center gap-3">
-          <input id="f-utils" type="checkbox" class="rounded text-indigo-600" ${checked}/>
-          <label for="f-utils" class="text-sm text-gray-700">${t('utilities_included')}</label>
-        </div>
-        <div><label class="${lbl}">${t('utility_details')}</label>
-          <input id="f-util-det" class="${inp}" value="${r.utility_details ?? ''}" placeholder="e.g. Water &amp; heating included"/></div>
-        <div><label class="${lbl}">${t('description')}</label>
-          <textarea id="f-desc" class="${inp}" rows="2">${r.description ?? ''}</textarea></div>`
-    }
-
-    window.showAddRoom = () => {
-      openModal(t('add_room'), roomForm(), `
-        <button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
-        <button onclick="saveRoom()" class="${btnP}">${t('save')}</button>`)
-    }
-
-    window.editRoom = r => {
-      openModal(t('edit_room'), roomForm(r), `
-        <button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
-        <button onclick="saveRoom('${r.id}')" class="${btnP}">${t('save')}</button>`)
-    }
-
-    window.saveRoom = async (id) => {
-      const room_number = document.getElementById('f-num').value.trim()
-      const monthly_rent = parseFloat(document.getElementById('f-rent').value)
-      if (!room_number || isNaN(monthly_rent)) { toast(t('error'), 'error'); return }
-
-      const payload = {
-        house_id:           houseId,
-        room_number,
-        floor:              parseInt(document.getElementById('f-floor').value) || 0,
-        area_sqm:           parseFloat(document.getElementById('f-area').value) || null,
-        monthly_rent,
-        utilities_included: document.getElementById('f-utils').checked,
-        utility_details:    document.getElementById('f-util-det').value.trim() || null,
-        description:        document.getElementById('f-desc').value.trim() || null,
+      function roomForm(r) {
+        r = r || {}
+        var checked = r.utilities_included ? 'checked' : ''
+        return '<div class="grid grid-cols-2 gap-3">' +
+            '<div><label class="' + lbl + '">' + t('room_number') + ' *</label>' +
+              '<input id="f-num" class="' + inp + '" value="' + (r.room_number ?? '') + '" placeholder="101"/></div>' +
+            '<div><label class="' + lbl + '">' + t('floor') + '</label>' +
+              '<input id="f-floor" type="number" class="' + inp + '" value="' + (r.floor ?? 0) + '"/></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-3">' +
+            '<div><label class="' + lbl + '">' + t('area_sqm') + '</label>' +
+              '<input id="f-area" type="number" step="0.01" class="' + inp + '" value="' + (r.area_sqm ?? '') + '"/></div>' +
+            '<div><label class="' + lbl + '">' + t('monthly_rent') + ' *</label>' +
+              '<input id="f-rent" type="number" step="0.01" class="' + inp + '" value="' + (r.monthly_rent ?? '') + '"/></div>' +
+          '</div>' +
+          '<div class="flex items-center gap-3">' +
+            '<input id="f-utils" type="checkbox" class="rounded text-indigo-600" ' + checked + '/>' +
+            '<label for="f-utils" class="text-sm text-gray-700">' + t('utilities_included') + '</label>' +
+          '</div>' +
+          '<div><label class="' + lbl + '">' + t('utility_details') + '</label>' +
+            '<input id="f-util-det" class="' + inp + '" value="' + (r.utility_details ?? '') + '" placeholder="e.g. Water &amp; heating included"/></div>' +
+          '<div><label class="' + lbl + '">' + t('description') + '</label>' +
+            '<textarea id="f-desc" class="' + inp + '" rows="2">' + (r.description ?? '') + '</textarea></div>'
       }
 
-      const { error } = id
-        ? await supabase.from('rooms').update(payload).eq('id', id)
-        : await supabase.from('rooms').insert(payload)
-      if (error) { toast(t('error'), 'error'); return }
-      toast(t('success'))
-      closeModal()
+      window.showAddRoom = function() {
+        RM.openModal(t('add_room'), roomForm(),
+          '<button onclick="RM.closeModal()" class="' + btnS + '">' + t('cancel') + '</button>' +
+          ' <button onclick="saveRoom()" class="' + btnP + '">' + t('save') + '</button>')
+      }
+
+      window.editRoom = function(r) {
+        RM.openModal(t('edit_room'), roomForm(r),
+          '<button onclick="RM.closeModal()" class="' + btnS + '">' + t('cancel') + '</button>' +
+          ' <button onclick="saveRoom(\'' + r.id + '\')" class="' + btnP + '">' + t('save') + '</button>')
+      }
+
+      window.saveRoom = async function(id) {
+        var room_number  = document.getElementById('f-num').value.trim()
+        var monthly_rent = parseFloat(document.getElementById('f-rent').value)
+        if (!room_number || isNaN(monthly_rent)) { RM.toast(t('error'), 'error'); return }
+
+        var payload = {
+          house_id:           houseId,
+          room_number:        room_number,
+          floor:              parseInt(document.getElementById('f-floor').value) || 0,
+          area_sqm:           parseFloat(document.getElementById('f-area').value) || null,
+          monthly_rent:       monthly_rent,
+          utilities_included: document.getElementById('f-utils').checked,
+          utility_details:    document.getElementById('f-util-det').value.trim() || null,
+          description:        document.getElementById('f-desc').value.trim() || null,
+        }
+
+        var res = id
+          ? await RM.db.from('rooms').update(payload).eq('id', id)
+          : await RM.db.from('rooms').insert(payload)
+        if (res.error) { RM.toast(t('error'), 'error'); return }
+        RM.toast(t('success'))
+        RM.closeModal()
+        await load()
+      }
+
+      window.deleteRoom = async function(id) {
+        if (!confirm(t('delete_room_confirm'))) return
+        var res = await RM.db.from('rooms').delete().eq('id', id)
+        if (res.error) { RM.toast(t('error'), 'error'); return }
+        RM.toast(t('success'))
+        await load()
+      }
+
       await load()
-    }
-
-    window.deleteRoom = async id => {
-      if (!confirm(t('delete_room_confirm'))) return
-      const { error } = await supabase.from('rooms').delete().eq('id', id)
-      if (error) { toast(t('error'), 'error'); return }
-      toast(t('success'))
-      await load()
-    }
-
-    window.closeModal = closeModal
-
-    await load()
+    })()
   </script>
 </body>
 </html>

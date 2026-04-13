@@ -6,9 +6,9 @@
   <title>My Rent — RentManager</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/app.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
-  <!-- Top nav -->
   <header class="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
     <div id="topnav" class="contents"></div>
   </header>
@@ -17,116 +17,111 @@
     <div id="content" class="text-gray-400 text-sm">Loading…</div>
   </main>
 
-  <script type="module">
-    import { supabase, setupTenantPage, t, badge, formatCurrency, formatDate } from '../js/utils.js'
+  <script>
+    (async function() {
+      var t = RM.t, formatCurrency = RM.formatCurrency, formatDate = RM.formatDate, badge = RM.badge
 
-    const user = await setupTenantPage('dashboard')
-    if (!user) throw new Error('no user')
+      var user = await RM.setupTenantPage('dashboard')
+      if (!user) return
 
-    async function load() {
-      // Active lease + room + house
-      const { data: leases } = await supabase
-        .from('leases')
-        .select('*, room:rooms(*, house:houses(name, address, city, country))')
-        .eq('tenant_id', user.id)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-
-      const lease = leases?.[0]
-      const room  = lease?.room
-      const house = room?.house
-
-      if (!lease) {
-        document.getElementById('content').innerHTML = `
-          <div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
-            <div class="text-5xl mb-4">🏠</div>
-            <h2 class="text-lg font-semibold text-gray-700 mb-2">${t('no_active_lease')}</h2>
-          </div>`
-        return
+      function row(k, v) {
+        return '<div class="flex justify-between gap-4"><span class="text-gray-500">' + k + '</span><span class="text-gray-900 text-right">' + v + '</span></div>'
       }
 
-      // This month's rent record
-      const now = new Date()
-      const m0  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-      const m1  = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0]
-      const { data: recs } = await supabase
-        .from('rent_records')
-        .select('*')
-        .eq('lease_id', lease.id)
-        .gte('due_date', m0).lte('due_date', m1)
-        .limit(1)
-      const thisMonth = recs?.[0]
+      async function load() {
+        var leasesRes = await RM.db.from('leases')
+          .select('*, room:rooms(*, house:houses(name, address, city, country))')
+          .eq('tenant_id', user.id)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
 
-      document.getElementById('content').innerHTML = `
-        <!-- Welcome -->
-        <div class="mb-8">
-          <h1 class="text-2xl font-bold text-gray-900">${t('welcome')}, ${user.name} 👋</h1>
-        </div>
+        var lease = leasesRes.data?.[0]
+        var room  = lease?.room
+        var house = room?.house
 
-        <!-- Two-column cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
-          <!-- Room card -->
-          <div class="bg-white rounded-2xl border border-gray-200 p-6">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">${t('your_room')}</p>
-            <div class="space-y-2 text-sm">
-              ${row('🏠 ' + t('your_house'),  house.name)}
-              ${row('📍',                      `${house.address}, ${house.city}`)}
-              ${row('🚪 ' + t('room_label'),   room.room_number)}
-              ${row(t('floor_label'),          room.floor)}
-              ${room.area_sqm ? row(t('area_sqm'), `${room.area_sqm} m²`) : ''}
-              ${row(t('utilities'),
-                room.utilities_included
-                  ? `<span class="text-emerald-600">✓ ${t('yes')}${room.utility_details ? ` — ${room.utility_details}` : ''}</span>`
-                  : t('no'))}
-              ${room.description ? row(t('description'), room.description) : ''}
-            </div>
-          </div>
+        if (!lease) {
+          document.getElementById('content').innerHTML =
+            '<div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">' +
+              '<div class="text-5xl mb-4">🏠</div>' +
+              '<h2 class="text-lg font-semibold text-gray-700 mb-2">' + t('no_active_lease') + '</h2>' +
+            '</div>'
+          return
+        }
 
-          <!-- Lease card -->
-          <div class="bg-white rounded-2xl border border-gray-200 p-6">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">${t('lease_period')}</p>
-            <div class="space-y-2 text-sm">
-              ${row(t('lease_start'),    formatDate(lease.start_date))}
-              ${row(t('lease_end'),      formatDate(lease.end_date))}
-              ${row(t('monthly_amount'), `<span class="font-semibold text-indigo-700">${formatCurrency(lease.monthly_rent)}</span>`)}
-              ${row(t('rent_due_day'),   `${lease.rent_due_day}. of month`)}
-            </div>
-          </div>
-        </div>
+        var now = new Date()
+        var m0  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        var m1  = new Date(now.getFullYear(), now.getMonth()+1, 0).toISOString().split('T')[0]
+        var recsRes = await RM.db.from('rent_records')
+          .select('*')
+          .eq('lease_id', lease.id)
+          .gte('due_date', m0).lte('due_date', m1)
+          .limit(1)
+        var thisMonth = recsRes.data?.[0]
 
-        <!-- Current month rent -->
-        <div class="bg-white rounded-2xl border ${thisMonth?.status === 'paid' ? 'border-emerald-200' : thisMonth?.status === 'partial' ? 'border-orange-200' : 'border-amber-200'} p-6">
-          <div class="flex items-center justify-between mb-4">
-            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">${t('current_rent')}</p>
-            ${thisMonth ? badge(thisMonth.status) : ''}
-          </div>
-          ${!thisMonth ? `
-            <p class="text-gray-400 text-sm">No record for this month yet.</p>` : `
-            <div class="space-y-2 text-sm">
-              ${row(t('amount_due'),  `<span class="font-semibold text-lg">${formatCurrency(thisMonth.amount_due)}</span>`)}
-              ${row(t('amount_paid'), formatCurrency(thisMonth.amount_paid))}
-              ${row(t('due_date'),    formatDate(thisMonth.due_date))}
-              ${thisMonth.paid_at ? row(t('paid_on'), formatDate(thisMonth.paid_at)) : ''}
-              ${thisMonth.amount_due - thisMonth.amount_paid > 0
-                ? `<div class="mt-3 pt-3 border-t border-gray-100 flex justify-between font-semibold">
-                    <span class="text-gray-600">${t('outstanding')}</span>
-                    <span class="text-amber-600">${formatCurrency(thisMonth.amount_due - thisMonth.amount_paid)}</span>
-                   </div>`
-                : ''}`}
-          </div>`}
-        </div>
+        var borderColor = thisMonth?.status === 'paid' ? 'border-emerald-200' : thisMonth?.status === 'partial' ? 'border-orange-200' : 'border-amber-200'
 
-        <div class="mt-4 text-right">
-          <a href="rent-history.html" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">${t('rent_history')} →</a>
-        </div>`
-    }
+        document.getElementById('content').innerHTML =
+          '<div class="mb-8">' +
+            '<h1 class="text-2xl font-bold text-gray-900">' + t('welcome') + ', ' + user.name + ' 👋</h1>' +
+          '</div>' +
 
-    function row(k, v) {
-      return `<div class="flex justify-between gap-4"><span class="text-gray-500">${k}</span><span class="text-gray-900 text-right">${v}</span></div>`
-    }
+          '<div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">' +
+            '<div class="bg-white rounded-2xl border border-gray-200 p-6">' +
+              '<p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">' + t('your_room') + '</p>' +
+              '<div class="space-y-2 text-sm">' +
+                row('🏠 ' + t('your_house'), house.name) +
+                row('📍', house.address + ', ' + house.city) +
+                row('🚪 ' + t('room_label'), room.room_number) +
+                row(t('floor_label'), room.floor) +
+                (room.area_sqm ? row(t('area_sqm'), room.area_sqm + ' m²') : '') +
+                row(t('utilities'),
+                  room.utilities_included
+                    ? '<span class="text-emerald-600">✓ ' + t('yes') + (room.utility_details ? ' — ' + room.utility_details : '') + '</span>'
+                    : t('no')) +
+                (room.description ? row(t('description'), room.description) : '') +
+              '</div>' +
+            '</div>' +
 
-    await load()
+            '<div class="bg-white rounded-2xl border border-gray-200 p-6">' +
+              '<p class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-4">' + t('lease_period') + '</p>' +
+              '<div class="space-y-2 text-sm">' +
+                row(t('lease_start'),    formatDate(lease.start_date)) +
+                row(t('lease_end'),      formatDate(lease.end_date)) +
+                row(t('monthly_amount'), '<span class="font-semibold text-indigo-700">' + formatCurrency(lease.monthly_rent) + '</span>') +
+                row(t('rent_due_day'),   lease.rent_due_day + '. of month') +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="bg-white rounded-2xl border ' + borderColor + ' p-6">' +
+            '<div class="flex items-center justify-between mb-4">' +
+              '<p class="text-xs font-semibold text-gray-400 uppercase tracking-wide">' + t('current_rent') + '</p>' +
+              (thisMonth ? badge(thisMonth.status) : '') +
+            '</div>' +
+            (!thisMonth
+              ? '<p class="text-gray-400 text-sm">No record for this month yet.</p>'
+              : '<div class="space-y-2 text-sm">' +
+                  row(t('amount_due'),  '<span class="font-semibold text-lg">' + formatCurrency(thisMonth.amount_due) + '</span>') +
+                  row(t('amount_paid'), formatCurrency(thisMonth.amount_paid)) +
+                  row(t('due_date'),    formatDate(thisMonth.due_date)) +
+                  (thisMonth.paid_at ? row(t('paid_on'), formatDate(thisMonth.paid_at)) : '') +
+                  (thisMonth.amount_due - thisMonth.amount_paid > 0
+                    ? '<div class="mt-3 pt-3 border-t border-gray-100 flex justify-between font-semibold">' +
+                        '<span class="text-gray-600">' + t('outstanding') + '</span>' +
+                        '<span class="text-amber-600">' + formatCurrency(thisMonth.amount_due - thisMonth.amount_paid) + '</span>' +
+                      '</div>'
+                    : '') +
+                '</div>') +
+          '</div>' +
+
+          '<div class="mt-4 text-right">' +
+            '<a href="rent-history.html" class="text-sm text-indigo-600 hover:text-indigo-700 font-medium">' + t('rent_history') + ' →</a>' +
+          '</div>'
+      }
+
+      await load()
+    })()
   </script>
 </body>
 </html>

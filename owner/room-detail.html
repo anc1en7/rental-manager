@@ -6,6 +6,7 @@
   <title>Room — RentManager</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="../js/app.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
   <div class="flex min-h-screen">
@@ -15,240 +16,218 @@
     </main>
   </div>
 
-  <script type="module">
-    import { supabase, setupOwnerPage, t, openModal, closeModal, toast, badge,
-             formatCurrency, formatDate, formatMonthYear, generateRentRecords,
-             inp, lbl, btnP, btnS, btnD } from '../js/utils.js'
+  <script>
+    (async function() {
+      var t = RM.t, inp = RM.inp, lbl = RM.lbl, btnP = RM.btnP, btnS = RM.btnS, btnD = RM.btnD
+      var formatCurrency = RM.formatCurrency, formatDate = RM.formatDate, badge = RM.badge
 
-    const roomId = new URLSearchParams(location.search).get('id')
-    if (!roomId) { location.href = 'houses.html' }
+      var roomId = new URLSearchParams(location.search).get('id')
+      if (!roomId) { location.href = 'houses.html'; return }
 
-    const user = await setupOwnerPage('houses')
-    if (!user) throw new Error('no user')
+      var user = await RM.setupOwnerPage('houses')
+      if (!user) return
 
-    let _room, _house, _lease, _tenant, _records
+      var _room, _house, _lease, _tenant, _records
 
-    async function load() {
-      // Room + house
-      const { data: room } = await supabase.from('rooms').select('*, house:houses(*)').eq('id', roomId).single()
-      if (!room) { location.href = 'houses.html'; return }
-      if (room.house.owner_id !== user.id) { location.href = 'houses.html'; return }
-      _room  = room
-      _house = room.house
+      async function load() {
+        var roomRes = await RM.db.from('rooms').select('*, house:houses(*)').eq('id', roomId).single()
+        if (!roomRes.data) { location.href = 'houses.html'; return }
+        if (roomRes.data.house.owner_id !== user.id) { location.href = 'houses.html'; return }
+        _room  = roomRes.data
+        _house = roomRes.data.house
 
-      // Active lease
-      const { data: leases } = await supabase
-        .from('leases')
-        .select('*, tenant:profiles(id,name)')
-        .eq('room_id', roomId)
-        .eq('status', 'active')
-        .order('created_at', { ascending: false })
-        .limit(1)
-      _lease  = leases?.[0] ?? null
-      _tenant = _lease?.tenant ?? null
+        var lRes = await RM.db.from('leases')
+          .select('*, tenant:profiles(id,name)')
+          .eq('room_id', roomId)
+          .eq('status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(1)
+        _lease  = lRes.data?.[0] ?? null
+        _tenant = _lease?.tenant ?? null
 
-      // Rent records for ALL leases in this room
-      const { data: allLeases } = await supabase.from('leases').select('id').eq('room_id', roomId)
-      _records = []
-      if (allLeases?.length) {
-        const { data: recs } = await supabase
-          .from('rent_records')
-          .select('*, lease:leases(monthly_rent, tenant:profiles(name))')
-          .in('lease_id', allLeases.map(l => l.id))
-          .order('due_date', { ascending: false })
-        _records = recs ?? []
+        var allLeasesRes = await RM.db.from('leases').select('id').eq('room_id', roomId)
+        _records = []
+        if (allLeasesRes.data?.length) {
+          var recRes = await RM.db.from('rent_records')
+            .select('*, lease:leases(monthly_rent, tenant:profiles(name))')
+            .in('lease_id', allLeasesRes.data.map(function(l) { return l.id }))
+            .order('due_date', { ascending: false })
+          _records = recRes.data ?? []
+        }
+
+        render()
       }
 
-      render()
-    }
-
-    function render() {
-      const r = _room, h = _house, l = _lease
-
-      document.getElementById('content').innerHTML = `
-        <!-- Breadcrumb -->
-        <div class="flex items-center gap-2 text-sm text-gray-500 mb-6">
-          <a href="houses.html" class="hover:text-indigo-600">${t('houses')}</a>
-          <span>›</span>
-          <a href="house-detail.html?id=${h.id}" class="hover:text-indigo-600">${h.name}</a>
-          <span>›</span>
-          <span class="text-gray-900 font-medium">${t('room_label')} ${r.room_number}</span>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <!-- Room info card -->
-          <div class="lg:col-span-1 bg-white rounded-2xl border border-gray-200 p-6 space-y-3">
-            <div class="flex items-center justify-between mb-1">
-              <h2 class="font-semibold text-gray-900">${t('room_label')} ${r.room_number}</h2>
-            </div>
-            <div class="space-y-2 text-sm">
-              ${row(t('floor_label'),    r.floor)}
-              ${row(t('area_sqm'),       r.area_sqm ? `${r.area_sqm} m²` : t('not_available'))}
-              ${row(t('monthly_rent'),   `<span class="font-semibold text-indigo-700">${formatCurrency(r.monthly_rent)}</span>`)}
-              ${row(t('utilities'),      r.utilities_included ? `<span class="text-emerald-600">✓ ${t('yes')}</span>` : t('no'))}
-              ${r.utility_details ? row(t('utility_details'), r.utility_details) : ''}
-              ${r.description ? row(t('description'), r.description) : ''}
-            </div>
-          </div>
-
-          <!-- Lease card -->
-          <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
-            <div class="flex items-center justify-between mb-4">
-              <h2 class="font-semibold text-gray-900">${t('current_tenant')}</h2>
-              ${l
-                ? `<button onclick="confirmEndLease('${l.id}')" class="${btnD} text-xs">${t('end_lease')}</button>`
-                : `<button onclick="showCreateLease()" class="${btnP} text-xs">${t('assign_tenant')}</button>`}
-            </div>
-            ${l ? `
-              <div class="space-y-2 text-sm">
-                ${row('👤 ' + t('name'),   `<span class="font-medium">${_tenant?.name ?? '—'}</span>`)}
-                ${row(t('lease_start'),    formatDate(l.start_date))}
-                ${row(t('lease_end'),      formatDate(l.end_date))}
-                ${row(t('monthly_rent'),   formatCurrency(l.monthly_rent))}
-                ${row(t('rent_due_day'),   `${l.rent_due_day}. of month`)}
-              </div>` : `
-              <div class="flex items-center justify-center h-24 text-gray-400 text-sm">
-                ${t('no_lease')}
-              </div>`}
-          </div>
-        </div>
-
-        <!-- Rent records table -->
-        <div class="bg-white rounded-2xl border border-gray-200">
-          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-            <h2 class="font-semibold text-gray-900">${t('rent_records')}</h2>
-            <span class="text-xs text-gray-400">${_records.length} records</span>
-          </div>
-          ${!_records.length ? `
-            <div class="px-6 py-10 text-center text-gray-400 text-sm">${t('no_rent_records')}</div>` : `
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                  <tr>
-                    <th class="px-6 py-3 text-left">${t('due_date')}</th>
-                    <th class="px-6 py-3 text-right">${t('amount_due')}</th>
-                    <th class="px-6 py-3 text-right">${t('amount_paid')}</th>
-                    <th class="px-6 py-3 text-center">${t('status')}</th>
-                    <th class="px-6 py-3 text-center">${t('actions')}</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                  ${_records.map(rec => `
-                    <tr class="hover:bg-gray-50">
-                      <td class="px-6 py-3 font-medium">${formatDate(rec.due_date)}</td>
-                      <td class="px-6 py-3 text-right">${formatCurrency(rec.amount_due)}</td>
-                      <td class="px-6 py-3 text-right ${rec.status === 'paid' ? 'text-emerald-600 font-medium' : ''}">${formatCurrency(rec.amount_paid)}</td>
-                      <td class="px-6 py-3 text-center">${badge(rec.status)}</td>
-                      <td class="px-6 py-3 text-center">
-                        ${rec.status !== 'paid'
-                          ? `<button onclick="showPayment('${rec.id}', ${rec.amount_due})"
-                               class="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-medium transition">${t('mark_as_paid')}</button>`
-                          : `<span class="text-xs text-gray-400">${formatDate(rec.paid_at)}</span>`}
-                      </td>
-                    </tr>`).join('')}
-                </tbody>
-              </table>
-            </div>`}
-        </div>`
-    }
-
-    function row(k, v) {
-      return `<div class="flex justify-between gap-4"><span class="text-gray-500">${k}</span><span class="text-gray-900 text-right">${v}</span></div>`
-    }
-
-    // Create lease modal
-    window.showCreateLease = async () => {
-      const { data: allTenants } = await supabase
-        .from('profiles').select('id,name').eq('role','tenant').order('name')
-      if (!allTenants?.length) {
-        toast(t('no_tenants_for_lease'), 'info')
-        return
+      function row(k, v) {
+        return '<div class="flex justify-between gap-4"><span class="text-gray-500">' + k + '</span><span class="text-gray-900 text-right">' + v + '</span></div>'
       }
-      const options = allTenants.map(p => `<option value="${p.id}">${p.name}</option>`).join('')
-      const today = new Date().toISOString().split('T')[0]
-      openModal(t('create_lease'), `
-        <div><label class="${lbl}">${t('select_tenant')} *</label>
-          <select id="f-tid" class="${inp}"><option value="">${t('select_tenant')}</option>${options}</select></div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="${lbl}">${t('start_date')} *</label>
-            <input id="f-start" type="date" class="${inp}" value="${today}"/></div>
-          <div><label class="${lbl}">${t('end_date')} *</label>
-            <input id="f-end" type="date" class="${inp}"/></div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="${lbl}">${t('monthly_rent')} *</label>
-            <input id="f-rent" type="number" step="0.01" class="${inp}" value="${_room.monthly_rent}"/></div>
-          <div>
-            <label class="${lbl}">${t('rent_due_day')}</label>
-            <input id="f-day" type="number" min="1" max="28" class="${inp}" value="1"/>
-            <p class="text-xs text-gray-400 mt-1">${t('rent_due_day_hint')}</p>
-          </div>
-        </div>`,
-        `<button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
-         <button onclick="saveLease()" class="${btnP}">${t('save')}</button>`)
-    }
 
-    window.saveLease = async () => {
-      const tenant_id    = document.getElementById('f-tid').value
-      const start_date   = document.getElementById('f-start').value
-      const end_date     = document.getElementById('f-end').value
-      const monthly_rent = parseFloat(document.getElementById('f-rent').value)
-      const rent_due_day = parseInt(document.getElementById('f-day').value) || 1
-      if (!tenant_id || !start_date || !end_date || isNaN(monthly_rent)) {
-        toast(t('error'), 'error'); return
+      function render() {
+        var r = _room, h = _house, l = _lease
+
+        document.getElementById('content').innerHTML =
+          '<div class="flex items-center gap-2 text-sm text-gray-500 mb-6">' +
+            '<a href="houses.html" class="hover:text-indigo-600">' + t('houses') + '</a>' +
+            '<span>›</span>' +
+            '<a href="house-detail.html?id=' + h.id + '" class="hover:text-indigo-600">' + h.name + '</a>' +
+            '<span>›</span>' +
+            '<span class="text-gray-900 font-medium">' + t('room_label') + ' ' + r.room_number + '</span>' +
+          '</div>' +
+
+          '<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">' +
+            '<div class="lg:col-span-1 bg-white rounded-2xl border border-gray-200 p-6 space-y-3">' +
+              '<h2 class="font-semibold text-gray-900 mb-1">' + t('room_label') + ' ' + r.room_number + '</h2>' +
+              '<div class="space-y-2 text-sm">' +
+                row(t('floor_label'),  r.floor) +
+                row(t('area_sqm'),     r.area_sqm ? r.area_sqm + ' m²' : t('not_available')) +
+                row(t('monthly_rent'), '<span class="font-semibold text-indigo-700">' + formatCurrency(r.monthly_rent) + '</span>') +
+                row(t('utilities'),    r.utilities_included ? '<span class="text-emerald-600">✓ ' + t('yes') + '</span>' : t('no')) +
+                (r.utility_details ? row(t('utility_details'), r.utility_details) : '') +
+                (r.description ? row(t('description'), r.description) : '') +
+              '</div>' +
+            '</div>' +
+
+            '<div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">' +
+              '<div class="flex items-center justify-between mb-4">' +
+                '<h2 class="font-semibold text-gray-900">' + t('current_tenant') + '</h2>' +
+                (l
+                  ? '<button onclick="confirmEndLease(\'' + l.id + '\')" class="' + btnD + ' text-xs">' + t('end_lease') + '</button>'
+                  : '<button onclick="showCreateLease()" class="' + btnP + ' text-xs">' + t('assign_tenant') + '</button>') +
+              '</div>' +
+              (l
+                ? '<div class="space-y-2 text-sm">' +
+                    row('👤 ' + t('name'),  '<span class="font-medium">' + (_tenant?.name ?? '—') + '</span>') +
+                    row(t('lease_start'),   formatDate(l.start_date)) +
+                    row(t('lease_end'),     formatDate(l.end_date)) +
+                    row(t('monthly_rent'),  formatCurrency(l.monthly_rent)) +
+                    row(t('rent_due_day'),  l.rent_due_day + '. of month') +
+                  '</div>'
+                : '<div class="flex items-center justify-center h-24 text-gray-400 text-sm">' + t('no_lease') + '</div>') +
+            '</div>' +
+          '</div>' +
+
+          '<div class="bg-white rounded-2xl border border-gray-200">' +
+            '<div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">' +
+              '<h2 class="font-semibold text-gray-900">' + t('rent_records') + '</h2>' +
+              '<span class="text-xs text-gray-400">' + _records.length + ' records</span>' +
+            '</div>' +
+            (!_records.length
+              ? '<div class="px-6 py-10 text-center text-gray-400 text-sm">' + t('no_rent_records') + '</div>'
+              : '<div class="overflow-x-auto">' +
+                  '<table class="w-full text-sm">' +
+                    '<thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">' +
+                      '<tr>' +
+                        '<th class="px-6 py-3 text-left">' + t('due_date') + '</th>' +
+                        '<th class="px-6 py-3 text-right">' + t('amount_due') + '</th>' +
+                        '<th class="px-6 py-3 text-right">' + t('amount_paid') + '</th>' +
+                        '<th class="px-6 py-3 text-center">' + t('status') + '</th>' +
+                        '<th class="px-6 py-3 text-center">' + t('actions') + '</th>' +
+                      '</tr>' +
+                    '</thead>' +
+                    '<tbody class="divide-y divide-gray-100">' +
+                      _records.map(function(rec) {
+                        return '<tr class="hover:bg-gray-50">' +
+                          '<td class="px-6 py-3 font-medium">' + formatDate(rec.due_date) + '</td>' +
+                          '<td class="px-6 py-3 text-right">' + formatCurrency(rec.amount_due) + '</td>' +
+                          '<td class="px-6 py-3 text-right ' + (rec.status === 'paid' ? 'text-emerald-600 font-medium' : '') + '">' + formatCurrency(rec.amount_paid) + '</td>' +
+                          '<td class="px-6 py-3 text-center">' + badge(rec.status) + '</td>' +
+                          '<td class="px-6 py-3 text-center">' +
+                            (rec.status !== 'paid'
+                              ? '<button onclick="showPayment(\'' + rec.id + '\',' + rec.amount_due + ')" class="text-xs px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-medium transition">' + t('mark_as_paid') + '</button>'
+                              : '<span class="text-xs text-gray-400">' + formatDate(rec.paid_at) + '</span>') +
+                          '</td>' +
+                        '</tr>'
+                      }).join('') +
+                    '</tbody>' +
+                  '</table>' +
+                '</div>') +
+          '</div>'
       }
-      if (new Date(end_date) <= new Date(start_date)) {
-        toast(t('error'), 'error'); return
+
+      window.showCreateLease = async function() {
+        var allTenantsRes = await RM.db.from('profiles').select('id,name').eq('role','tenant').order('name')
+        if (!allTenantsRes.data?.length) {
+          RM.toast(t('no_tenants_for_lease'), 'info')
+          return
+        }
+        var options = allTenantsRes.data.map(function(p) { return '<option value="' + p.id + '">' + p.name + '</option>' }).join('')
+        var today = new Date().toISOString().split('T')[0]
+        RM.openModal(t('create_lease'),
+          '<div><label class="' + lbl + '">' + t('select_tenant') + ' *</label>' +
+            '<select id="f-tid" class="' + inp + '"><option value="">' + t('select_tenant') + '</option>' + options + '</select></div>' +
+          '<div class="grid grid-cols-2 gap-3">' +
+            '<div><label class="' + lbl + '">' + t('start_date') + ' *</label>' +
+              '<input id="f-start" type="date" class="' + inp + '" value="' + today + '"/></div>' +
+            '<div><label class="' + lbl + '">' + t('end_date') + ' *</label>' +
+              '<input id="f-end" type="date" class="' + inp + '"/></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-3">' +
+            '<div><label class="' + lbl + '">' + t('monthly_rent') + ' *</label>' +
+              '<input id="f-rent" type="number" step="0.01" class="' + inp + '" value="' + _room.monthly_rent + '"/></div>' +
+            '<div><label class="' + lbl + '">' + t('rent_due_day') + '</label>' +
+              '<input id="f-day" type="number" min="1" max="28" class="' + inp + '" value="1"/>' +
+              '<p class="text-xs text-gray-400 mt-1">' + t('rent_due_day_hint') + '</p>' +
+            '</div>' +
+          '</div>',
+          '<button onclick="RM.closeModal()" class="' + btnS + '">' + t('cancel') + '</button>' +
+          ' <button onclick="saveLease()" class="' + btnP + '">' + t('save') + '</button>')
       }
-      const { data: lease, error } = await supabase.from('leases')
-        .insert({ room_id: roomId, tenant_id, start_date, end_date, monthly_rent, rent_due_day, status: 'active' })
-        .select().single()
-      if (error) { toast(t('error'), 'error'); console.error(error); return }
-      try {
-        await generateRentRecords(lease.id, start_date, end_date, monthly_rent, rent_due_day)
-      } catch (e) { console.error('rent record gen failed', e) }
-      toast(t('success'))
-      closeModal()
+
+      window.saveLease = async function() {
+        var tenant_id    = document.getElementById('f-tid').value
+        var start_date   = document.getElementById('f-start').value
+        var end_date     = document.getElementById('f-end').value
+        var monthly_rent = parseFloat(document.getElementById('f-rent').value)
+        var rent_due_day = parseInt(document.getElementById('f-day').value) || 1
+        if (!tenant_id || !start_date || !end_date || isNaN(monthly_rent)) { RM.toast(t('error'), 'error'); return }
+        if (new Date(end_date) <= new Date(start_date)) { RM.toast(t('error'), 'error'); return }
+
+        var leaseRes = await RM.db.from('leases')
+          .insert({ room_id: roomId, tenant_id: tenant_id, start_date: start_date, end_date: end_date, monthly_rent: monthly_rent, rent_due_day: rent_due_day, status: 'active' })
+          .select().single()
+        if (leaseRes.error) { RM.toast(t('error'), 'error'); console.error(leaseRes.error); return }
+        try {
+          await RM.generateRentRecords(leaseRes.data.id, start_date, end_date, monthly_rent, rent_due_day)
+        } catch(e) { console.error('rent record gen failed', e) }
+        RM.toast(t('success'))
+        RM.closeModal()
+        await load()
+      }
+
+      window.confirmEndLease = async function(leaseId) {
+        if (!confirm(t('end_lease_confirm'))) return
+        var res = await RM.db.from('leases').update({ status: 'ended' }).eq('id', leaseId)
+        if (res.error) { RM.toast(t('error'), 'error'); return }
+        RM.toast(t('success'))
+        await load()
+      }
+
+      window.showPayment = function(recId, amountDue) {
+        RM.openModal(t('mark_as_paid'),
+          '<div><label class="' + lbl + '">' + t('payment_amount') + ' *</label>' +
+            '<input id="f-paid" type="number" step="0.01" class="' + inp + '" value="' + amountDue + '"/></div>' +
+          '<div><label class="' + lbl + '">' + t('notes') + '</label>' +
+            '<input id="f-notes" class="' + inp + '" placeholder="e.g. Bank transfer"/></div>',
+          '<button onclick="RM.closeModal()" class="' + btnS + '">' + t('cancel') + '</button>' +
+          ' <button onclick="savePayment(\'' + recId + '\',' + amountDue + ')" class="' + btnP + '">' + t('save') + '</button>')
+      }
+
+      window.savePayment = async function(recId, amountDue) {
+        var paid  = parseFloat(document.getElementById('f-paid').value)
+        var notes = document.getElementById('f-notes').value.trim() || null
+        if (isNaN(paid) || paid < 0) { RM.toast(t('error'), 'error'); return }
+        var status = paid >= amountDue ? 'paid' : paid > 0 ? 'partial' : 'pending'
+        var res = await RM.db.from('rent_records').update({
+          amount_paid: paid, status: status, notes: notes, paid_at: paid > 0 ? new Date().toISOString() : null
+        }).eq('id', recId)
+        if (res.error) { RM.toast(t('error'), 'error'); return }
+        RM.toast(t('success'))
+        RM.closeModal()
+        await load()
+      }
+
       await load()
-    }
-
-    // End lease
-    window.confirmEndLease = async (leaseId) => {
-      if (!confirm(t('end_lease_confirm'))) return
-      const { error } = await supabase.from('leases').update({ status: 'ended' }).eq('id', leaseId)
-      if (error) { toast(t('error'), 'error'); return }
-      toast(t('success'))
-      await load()
-    }
-
-    // Mark payment
-    window.showPayment = (recId, amountDue) => {
-      openModal(t('mark_as_paid'), `
-        <div><label class="${lbl}">${t('payment_amount')} *</label>
-          <input id="f-paid" type="number" step="0.01" class="${inp}" value="${amountDue}"/></div>
-        <div><label class="${lbl}">${t('notes')}</label>
-          <input id="f-notes" class="${inp}" placeholder="e.g. Bank transfer"/></div>`,
-        `<button onclick="closeModal()" class="${btnS}">${t('cancel')}</button>
-         <button onclick="savePayment('${recId}', ${amountDue})" class="${btnP}">${t('save')}</button>`)
-    }
-
-    window.savePayment = async (recId, amountDue) => {
-      const paid  = parseFloat(document.getElementById('f-paid').value)
-      const notes = document.getElementById('f-notes').value.trim() || null
-      if (isNaN(paid) || paid < 0) { toast(t('error'), 'error'); return }
-      const status = paid >= amountDue ? 'paid' : paid > 0 ? 'partial' : 'pending'
-      const { error } = await supabase.from('rent_records').update({
-        amount_paid: paid, status, notes, paid_at: paid > 0 ? new Date().toISOString() : null
-      }).eq('id', recId)
-      if (error) { toast(t('error'), 'error'); return }
-      toast(t('success'))
-      closeModal()
-      await load()
-    }
-
-    window.closeModal = closeModal
-
-    await load()
+    })()
   </script>
 </body>
 </html>
