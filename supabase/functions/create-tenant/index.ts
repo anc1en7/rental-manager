@@ -70,6 +70,18 @@ serve(async (req: Request) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    // ── 4. Create profile entry for the new tenant ───────────────────────
+    if (data.user?.id) {
+      const { error: profileErr } = await adminClient
+        .from('profiles')
+        .insert({ id: data.user.id, name: name, role: 'tenant' })
+      
+      if (profileErr && !profileErr.message.includes('duplicate')) {
+        return new Response(JSON.stringify({ error: 'Tenant invited but profile creation failed: ' + profileErr.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+    }
+
     return new Response(JSON.stringify({ user_id: data.user?.id }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
