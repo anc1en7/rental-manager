@@ -135,6 +135,12 @@
         if (!name || !email) { RM.toast(t('error'), 'error'); return }
 
         var sessionRes = await RM.db.auth.getSession()
+        if (!sessionRes.data || !sessionRes.data.session || !sessionRes.data.session.access_token) {
+          console.error('No valid Supabase session found for inviteTenant', sessionRes)
+          RM.toast('Authentication required. Please log in again.', 'error')
+          return
+        }
+
         try {
           var res = await fetch(RM.SUPABASE_URL + '/functions/v1/create-tenant', {
             method: 'POST',
@@ -145,7 +151,8 @@
             body: JSON.stringify({ name: name, email: email }),
           })
           if (!res.ok) {
-            var body = await res.json().catch(function() { return {} })
+            var body = await res.json().catch(function() { return { error: String(res.status) + ' ' + res.statusText } })
+            console.error('create-tenant failed', res.status, body)
             RM.toast(body.error ?? t('error'), 'error')
             return
           }
