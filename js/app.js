@@ -57,6 +57,11 @@
       all_months:'All Months', house_label:'House', room_label:'Room', tenant_label:'Tenant',
       summary:'Summary', total_due:'Total Due', total_paid:'Total Paid', outstanding:'Outstanding',
       active:'Active', ended:'Ended',
+      set_password:'Set Your Password', set_password_subtitle:'Choose a password to access your account.',
+      new_password:'New Password', confirm_password:'Confirm Password',
+      password_mismatch:'Passwords do not match.',
+      password_too_short:'Password must be at least 8 characters.',
+      invite_expired:'This invite link has expired. Please ask your landlord to send a new invite.',
     },
     de: {
       app_name:'RentManager', login:'Anmelden', logout:'Abmelden', email:'E-Mail', password:'Passwort',
@@ -103,6 +108,11 @@
       all_months:'Alle Monate', house_label:'Haus', room_label:'Zimmer', tenant_label:'Mieter',
       summary:'Zusammenfassung', total_due:'Gesamt f\u00e4llig', total_paid:'Gesamt bezahlt', outstanding:'Offen',
       active:'Aktiv', ended:'Beendet',
+      set_password:'Passwort festlegen', set_password_subtitle:'Wähle ein Passwort für dein Konto.',
+      new_password:'Neues Passwort', confirm_password:'Passwort bestätigen',
+      password_mismatch:'Passwörter stimmen nicht überein.',
+      password_too_short:'Das Passwort muss mindestens 8 Zeichen lang sein.',
+      invite_expired:'Dieser Einladungslink ist abgelaufen. Bitte deinen Vermieter, dich erneut einzuladen.',
     }
   }
 
