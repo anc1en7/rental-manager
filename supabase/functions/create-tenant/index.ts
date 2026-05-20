@@ -49,7 +49,7 @@ serve(async (req: Request) => {
     }
 
     // ── 2. Parse request body ────────────────────────────────────────────
-    const { name, email } = await req.json()
+    const { name, email, redirectTo } = await req.json()
     if (!name || !email) {
       return new Response(JSON.stringify({ error: 'name and email are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
@@ -64,6 +64,7 @@ serve(async (req: Request) => {
     // inviteUserByEmail sends the tenant an email with a "Set Password" link
     const { data, error: inviteErr } = await adminClient.auth.admin.inviteUserByEmail(email, {
       data: { name, role: 'tenant' },
+      ...(redirectTo ? { redirectTo } : {}),
     })
 
     if (inviteErr) {

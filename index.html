@@ -122,13 +122,36 @@
         // Supabase auto-consumes the hash tokens and establishes a session.
         // If the link is expired, getSession() returns null.
         ;(async function() {
-          var sessionRes = await RM.db.auth.getSession()
-          if (!sessionRes.data.session) {
+          var errEl = document.getElementById('setpw-err')
+          var btn   = document.getElementById('setpw-btn')
+
+          // getSession() alone can miss invite tokens before Supabase finishes
+          // processing them. Listen for SIGNED_IN as the reliable signal, with
+          // a parallel getSession() fast-path and a timeout fallback.
+          var session = await new Promise(function(resolve) {
+            var done = false
+            var timer = setTimeout(function() {
+              if (!done) { done = true; resolve(null) }
+            }, 6000)
+
+            RM.db.auth.onAuthStateChange(function(event, sess) {
+              if (done) return
+              if (event === 'SIGNED_IN' && sess) {
+                clearTimeout(timer); done = true; resolve(sess)
+              }
+            })
+
+            RM.db.auth.getSession().then(function(res) {
+              if (done) return
+              if (res.data.session) { clearTimeout(timer); done = true; resolve(res.data.session) }
+            })
+          })
+
+          if (!session) {
             sessionStorage.removeItem('rm_auth_flow')
-            var errEl = document.getElementById('setpw-err')
             errEl.textContent = t('invite_expired')
             errEl.classList.remove('hidden')
-            document.getElementById('setpw-btn').disabled = true
+            btn.disabled = true
           }
         })()
 
