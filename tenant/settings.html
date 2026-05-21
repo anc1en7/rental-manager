@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Settings — RentManager</title>
+  <script src="../js/theme-init.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="../css/theme.css"/>
+  <script src="../js/app.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <header class="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
+    <div id="topnav" class="contents"></div>
+  </header>
+
+  <main class="max-w-lg mx-auto px-4 py-10">
+    <div id="content" class="text-gray-400 text-sm">Loading…</div>
+  </main>
+
+  <script>
+    (async function() {
+      var t = RM.t
+      var user = await RM.setupTenantPage('settings')
+      if (!user) return
+
+      function render() {
+        var theme = RM.getTheme()
+        var lang  = RM.getLang()
+
+        var btnActive = 'flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition bg-indigo-600 text-white border-indigo-600'
+        var btnIdle   = 'flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+
+        document.getElementById('content').innerHTML =
+          '<h1 class="text-2xl font-bold text-gray-900 mb-8">' + t('settings') + '</h1>' +
+
+          '<div class="space-y-4">' +
+
+            '<div class="bg-white rounded-2xl border border-gray-200 p-6">' +
+              '<h2 class="text-sm font-semibold text-gray-700 mb-1">' + t('theme') + '</h2>' +
+              '<p class="text-xs text-gray-400 mb-4">' + t('theme_hint') + '</p>' +
+              '<div class="flex gap-2">' +
+                '<button onclick="changeTheme(\'light\')" class="' + (theme === 'light' ? btnActive : btnIdle) + '">&#9728; ' + t('theme_light') + '</button>' +
+                '<button onclick="changeTheme(\'dark\')"  class="' + (theme === 'dark'  ? btnActive : btnIdle) + '">&#9790; ' + t('theme_dark')  + '</button>' +
+              '</div>' +
+            '</div>' +
+
+            '<div class="bg-white rounded-2xl border border-gray-200 p-6">' +
+              '<h2 class="text-sm font-semibold text-gray-700 mb-1">' + t('language') + '</h2>' +
+              '<p class="text-xs text-gray-400 mb-4">' + t('language_hint') + '</p>' +
+              '<div class="flex gap-2">' +
+                '<button onclick="changeLang(\'en\')" class="' + (lang === 'en' ? btnActive : btnIdle) + '">English</button>' +
+                '<button onclick="changeLang(\'de\')" class="' + (lang === 'de' ? btnActive : btnIdle) + '">Deutsch</button>' +
+              '</div>' +
+            '</div>' +
+
+          '</div>'
+      }
+
+      window.changeTheme = function(th) {
+        RM.setTheme(th)
+        render()
+      }
+
+      window.changeLang = function(l) {
+        RM.setLang(l)
+      }
+
+      render()
+    })()
+  </script>
+</body>
+</html>

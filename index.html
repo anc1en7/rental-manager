@@ -4,16 +4,21 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>RentManager — Login</title>
+  <script src="./js/theme-init.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="./css/theme.css"/>
   <script src="./js/app.js"></script>
 </head>
 <body class="bg-gradient-to-br from-indigo-50 via-white to-slate-50 min-h-screen flex items-center justify-center p-4">
 
   <div class="w-full max-w-md">
-    <!-- Language toggle -->
-    <div class="flex justify-end mb-4">
-      <button id="lang-btn"
+    <!-- Language + theme toggles -->
+    <div class="flex justify-end gap-2 mb-4">
+      <button id="theme-btn" type="button" title="Toggle theme"
+        class="text-sm px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 text-gray-600 font-medium transition">
+      </button>
+      <button id="lang-btn" type="button"
         class="text-sm px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 text-gray-600 font-medium transition">
         DE
       </button>
@@ -91,6 +96,16 @@
         sessionStorage.setItem('rm_auth_flow', authType)
       }
       var isInviteFlow = !!sessionStorage.getItem('rm_auth_flow')
+
+      // ── Theme ────────────────────────────────────────────────────────────────
+      function applyThemeBtn() {
+        document.getElementById('theme-btn').textContent = RM.getTheme() === 'dark' ? '☀' : '☾'
+      }
+      applyThemeBtn()
+      document.getElementById('theme-btn').addEventListener('click', function() {
+        RM.setTheme(RM.getTheme() === 'dark' ? 'light' : 'dark')
+        applyThemeBtn()
+      })
 
       // ── Language ─────────────────────────────────────────────────────────────
       function applyLang() {

@@ -62,6 +62,10 @@
       password_mismatch:'Passwords do not match.',
       password_too_short:'Password must be at least 8 characters.',
       invite_expired:'This invite link has expired. Please ask your landlord to send a new invite.',
+      settings:'Settings',
+      theme:'Appearance', theme_hint:'Choose how RentManager looks for you.',
+      theme_light:'Light', theme_dark:'Dark',
+      language:'Language', language_hint:'Choose your preferred language.',
     },
     de: {
       app_name:'RentManager', login:'Anmelden', logout:'Abmelden', email:'E-Mail', password:'Passwort',
@@ -113,6 +117,10 @@
       password_mismatch:'Passwörter stimmen nicht überein.',
       password_too_short:'Das Passwort muss mindestens 8 Zeichen lang sein.',
       invite_expired:'Dieser Einladungslink ist abgelaufen. Bitte deinen Vermieter, dich erneut einzuladen.',
+      settings:'Einstellungen',
+      theme:'Erscheinungsbild', theme_hint:'Wähle das Erscheinungsbild von RentManager.',
+      theme_light:'Hell', theme_dark:'Dunkel',
+      language:'Sprache', language_hint:'Wähle deine bevorzugte Sprache.',
     }
   }
 
@@ -125,6 +133,14 @@
       ? translations[l][key]
       : (translations.en[key] != null ? translations.en[key] : key)
   }
+
+  // ── Theme helpers ──────────────────────────────────────────────────────────
+  function getTheme() { return localStorage.getItem('theme') || 'light' }
+  function setTheme(th) { localStorage.setItem('theme', th); applyTheme() }
+  function applyTheme() {
+    document.documentElement.classList.toggle('dark', getTheme() === 'dark')
+  }
+  applyTheme()
 
   // ── Routing helpers ────────────────────────────────────────────────────────
   function rootPath() {
@@ -222,12 +238,12 @@
 
   // ── Sidebar / Nav HTML ─────────────────────────────────────────────────────
   function ownerSidebar(active, name) {
-    var other = getLang() === 'en' ? 'DE' : 'EN'
     var items = [
       { key:'dashboard', href:'dashboard.html', icon:'&#8962;' },
       { key:'houses',    href:'houses.html',    icon:'&#127968;' },
       { key:'tenants',   href:'tenants.html',   icon:'&#128100;' },
-      { key:'rent',      href:'rent.html',       icon:'&#128202;' },
+      { key:'rent',      href:'rent.html',      icon:'&#128202;' },
+      { key:'settings',  href:'settings.html',  icon:'&#9881;' },
     ]
     var nav = items.map(function(item) {
       var a = item.key === active
@@ -243,15 +259,11 @@
       '<nav class="flex-1 px-3 py-4 space-y-0.5">' + nav + '</nav>' +
       '<div class="px-4 py-4 border-t border-gray-100">' +
         '<p class="text-xs text-gray-400 truncate mb-2">' + (name || '') + '</p>' +
-        '<div class="flex gap-2">' +
-          '<button onclick="window.__langToggle()" class="text-xs px-2.5 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 font-medium">' + other + '</button>' +
-          '<button onclick="window.__logout()" class="text-xs px-2.5 py-1 text-red-600 hover:bg-red-50 rounded-lg font-medium">' + t('logout') + '</button>' +
-        '</div>' +
+        '<button onclick="window.__logout()" class="w-full text-xs px-2.5 py-1.5 text-red-600 hover:bg-red-50 rounded-lg font-medium text-left transition">' + t('logout') + '</button>' +
       '</div>'
   }
 
   function tenantTopNav(active, name) {
-    var other = getLang() === 'en' ? 'DE' : 'EN'
     var items = [
       { key:'dashboard',    href:'dashboard.html' },
       { key:'rent_history', href:'rent-history.html' },
@@ -269,7 +281,7 @@
       '<div class="flex items-center gap-1">' + links + '</div>' +
       '<div class="flex items-center gap-2">' +
         '<span class="text-xs text-gray-400 hidden sm:inline">' + (name || '') + '</span>' +
-        '<button onclick="window.__langToggle()" class="text-xs px-2.5 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 font-medium">' + other + '</button>' +
+        '<a href="settings.html" class="text-xs px-2.5 py-1 border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-500 font-medium transition">&#9881;</a>' +
         '<button onclick="window.__logout()" class="text-xs px-2.5 py-1 text-red-600 hover:bg-red-50 rounded-lg font-medium">' + t('logout') + '</button>' +
       '</div>'
   }
@@ -291,7 +303,6 @@
     try { user = await requireAuth('owner') } catch(e) { showPageError(e); return null }
     if (!user) return null
     document.getElementById('sidebar').innerHTML = ownerSidebar(active, user.name)
-    window.__langToggle = function() { setLang(getLang() === 'en' ? 'de' : 'en') }
     window.__logout = async function() { await db.auth.signOut(); window.location.href = '../index.html' }
     return user
   }
@@ -301,7 +312,6 @@
     try { user = await requireAuth('tenant') } catch(e) { showPageError(e); return null }
     if (!user) return null
     document.getElementById('topnav').innerHTML = tenantTopNav(active, user.name)
-    window.__langToggle = function() { setLang(getLang() === 'en' ? 'de' : 'en') }
     window.__logout = async function() { await db.auth.signOut(); window.location.href = '../index.html' }
     return user
   }
@@ -337,6 +347,7 @@
     ownerSidebar: ownerSidebar, tenantTopNav: tenantTopNav,
     setupOwnerPage: setupOwnerPage, setupTenantPage: setupTenantPage,
     showPageError: showPageError, generateRentRecords: generateRentRecords,
+    getTheme: getTheme, setTheme: setTheme,
     SUPABASE_URL: SUPABASE_URL,
   }
 })()
