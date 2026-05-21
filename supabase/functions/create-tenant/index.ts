@@ -68,6 +68,7 @@ serve(async (req: Request) => {
     })
 
     if (inviteErr) {
+      console.error('inviteUserByEmail error:', JSON.stringify(inviteErr))
       return new Response(JSON.stringify({ error: inviteErr.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }

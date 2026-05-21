@@ -142,17 +142,17 @@ create policy "own_profile_update"
   on public.profiles for update
   using (auth.uid() = id);
 
--- Owner must read tenant profiles to display names
+-- Helper: check if the caller is an owner without causing RLS recursion
+create or replace function public.is_owner()
+returns boolean language sql security definer as $$
+  select exists (select 1 from public.profiles where id = auth.uid() and role = 'owner')
+$$;
+
+-- Owner can read any tenant profile (needed to assign tenants to rooms before a lease exists)
 create policy "owner_reads_tenant_profiles"
   on public.profiles for select
   using (
-    exists (
-      select 1 from public.leases l
-      join public.rooms r  on r.id  = l.room_id
-      join public.houses h on h.id  = r.house_id
-      where l.tenant_id = profiles.id
-        and h.owner_id  = auth.uid()
-    )
+    public.is_owner() and role = 'tenant'
   );
 
 -- HOUSES --
