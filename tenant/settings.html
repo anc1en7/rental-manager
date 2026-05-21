@@ -21,41 +21,89 @@
 
   <script>
     (async function() {
-      var t = RM.t
+      var t   = RM.t
+      var inp = RM.inp
+      var lbl = RM.lbl
+
       var user = await RM.setupTenantPage('settings')
       if (!user) return
+
+      var btnActive = 'flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition bg-indigo-600 text-white border-indigo-600'
+      var btnIdle   = 'flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+      var btnSave   = 'px-4 py-2 rounded-lg text-sm font-medium transition bg-indigo-600 hover:bg-indigo-700 text-white'
+
+      function card(title, hint, body) {
+        return '<div class="bg-white rounded-2xl border border-gray-200 p-6">' +
+          '<h2 class="text-sm font-semibold text-gray-700 mb-1">' + title + '</h2>' +
+          '<p class="text-xs text-gray-400 mb-4">' + hint + '</p>' +
+          body +
+          '</div>'
+      }
 
       function render() {
         var theme = RM.getTheme()
         var lang  = RM.getLang()
 
-        var btnActive = 'flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition bg-indigo-600 text-white border-indigo-600'
-        var btnIdle   = 'flex-1 py-2.5 px-4 rounded-xl text-sm font-medium border transition bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
-
         document.getElementById('content').innerHTML =
           '<h1 class="text-2xl font-bold text-gray-900 mb-8">' + t('settings') + '</h1>' +
-
           '<div class="space-y-4">' +
 
-            '<div class="bg-white rounded-2xl border border-gray-200 p-6">' +
-              '<h2 class="text-sm font-semibold text-gray-700 mb-1">' + t('theme') + '</h2>' +
-              '<p class="text-xs text-gray-400 mb-4">' + t('theme_hint') + '</p>' +
+            card(t('account'), t('account_hint'),
+              '<div class="space-y-3">' +
+                '<div><label class="' + lbl + '">' + t('display_name') + '</label>' +
+                  '<input id="s-name" class="' + inp + '" value="' + RM.escHtml(user.name) + '"/></div>' +
+                '<div><label class="' + lbl + '">' + t('email') + '</label>' +
+                  '<input class="' + inp + ' opacity-60" value="' + RM.escHtml(user.email) + '" disabled/></div>' +
+                '<button onclick="saveName()" class="' + btnSave + '">' + t('save') + '</button>' +
+              '</div>'
+            ) +
+
+            card(t('security'), t('security_hint'),
+              '<div class="space-y-3">' +
+                '<div><label class="' + lbl + '">' + t('new_password') + '</label>' +
+                  '<input id="s-pw1" type="password" class="' + inp + '" placeholder="••••••••"/></div>' +
+                '<div><label class="' + lbl + '">' + t('confirm_password') + '</label>' +
+                  '<input id="s-pw2" type="password" class="' + inp + '" placeholder="••••••••"/></div>' +
+                '<button onclick="savePassword()" class="' + btnSave + '">' + t('save') + '</button>' +
+              '</div>'
+            ) +
+
+            card(t('theme'), t('theme_hint'),
               '<div class="flex gap-2">' +
                 '<button onclick="changeTheme(\'light\')" class="' + (theme === 'light' ? btnActive : btnIdle) + '">&#9728; ' + t('theme_light') + '</button>' +
                 '<button onclick="changeTheme(\'dark\')"  class="' + (theme === 'dark'  ? btnActive : btnIdle) + '">&#9790; ' + t('theme_dark')  + '</button>' +
-              '</div>' +
-            '</div>' +
+              '</div>'
+            ) +
 
-            '<div class="bg-white rounded-2xl border border-gray-200 p-6">' +
-              '<h2 class="text-sm font-semibold text-gray-700 mb-1">' + t('language') + '</h2>' +
-              '<p class="text-xs text-gray-400 mb-4">' + t('language_hint') + '</p>' +
+            card(t('language'), t('language_hint'),
               '<div class="flex gap-2">' +
                 '<button onclick="changeLang(\'en\')" class="' + (lang === 'en' ? btnActive : btnIdle) + '">English</button>' +
                 '<button onclick="changeLang(\'de\')" class="' + (lang === 'de' ? btnActive : btnIdle) + '">Deutsch</button>' +
-              '</div>' +
-            '</div>' +
+              '</div>'
+            ) +
 
           '</div>'
+      }
+
+      window.saveName = async function() {
+        var name = document.getElementById('s-name').value.trim()
+        if (!name) { RM.toast(t('error'), 'error'); return }
+        var { error } = await RM.db.from('profiles').update({ name: name }).eq('id', user.id)
+        if (error) { RM.toast(error.message, 'error'); return }
+        user.name = name
+        RM.toast(t('profile_updated'))
+      }
+
+      window.savePassword = async function() {
+        var pw1 = document.getElementById('s-pw1').value
+        var pw2 = document.getElementById('s-pw2').value
+        if (pw1.length < 8) { RM.toast(t('password_too_short'), 'error'); return }
+        if (pw1 !== pw2)    { RM.toast(t('password_mismatch'),  'error'); return }
+        var { error } = await RM.db.auth.updateUser({ password: pw1 })
+        if (error) { RM.toast(error.message, 'error'); return }
+        document.getElementById('s-pw1').value = ''
+        document.getElementById('s-pw2').value = ''
+        RM.toast(t('password_changed'))
       }
 
       window.changeTheme = function(th) {

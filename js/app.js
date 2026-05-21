@@ -66,6 +66,10 @@
       theme:'Appearance', theme_hint:'Choose how RentManager looks for you.',
       theme_light:'Light', theme_dark:'Dark',
       language:'Language', language_hint:'Choose your preferred language.',
+      account:'Account', account_hint:'Update your display name.',
+      display_name:'Display Name', profile_updated:'Profile updated.',
+      security:'Security', security_hint:'Change your account password.',
+      password_changed:'Password changed successfully.',
     },
     de: {
       app_name:'RentManager', login:'Anmelden', logout:'Abmelden', email:'E-Mail', password:'Passwort',
@@ -121,6 +125,10 @@
       theme:'Erscheinungsbild', theme_hint:'Wähle das Erscheinungsbild von RentManager.',
       theme_light:'Hell', theme_dark:'Dunkel',
       language:'Sprache', language_hint:'Wähle deine bevorzugte Sprache.',
+      account:'Konto', account_hint:'Aktualisiere deinen Anzeigenamen.',
+      display_name:'Anzeigename', profile_updated:'Profil aktualisiert.',
+      security:'Sicherheit', security_hint:'Ändere dein Kontopasswort.',
+      password_changed:'Passwort erfolgreich geändert.',
     }
   }
 
@@ -184,6 +192,11 @@
     if (!d) return ''
     return new Intl.DateTimeFormat(getLang() === 'de' ? 'de-DE' : 'en-GB',
       { month: 'long', year: 'numeric' }).format(new Date(d))
+  }
+
+  // ── HTML escape ───────────────────────────────────────────────────────────
+  function escHtml(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
   }
 
   // ── Status badge ───────────────────────────────────────────────────────────
@@ -347,7 +360,7 @@
     ownerSidebar: ownerSidebar, tenantTopNav: tenantTopNav,
     setupOwnerPage: setupOwnerPage, setupTenantPage: setupTenantPage,
     showPageError: showPageError, generateRentRecords: generateRentRecords,
-    getTheme: getTheme, setTheme: setTheme,
+    getTheme: getTheme, setTheme: setTheme, escHtml: escHtml,
     SUPABASE_URL: SUPABASE_URL,
   }
 })()
