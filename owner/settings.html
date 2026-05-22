@@ -93,11 +93,10 @@
             ) +
 
             card(t('currency'), t('currency_hint'),
-              '<div class="grid grid-cols-2 gap-2">' +
+              '<div class="flex gap-2">' +
                 '<button onclick="changeCurrency(\'EUR\')" class="' + (cur === 'EUR' ? btnActive : btnIdle) + '">€ EUR</button>' +
                 '<button onclick="changeCurrency(\'USD\')" class="' + (cur === 'USD' ? btnActive : btnIdle) + '">$ USD</button>' +
                 '<button onclick="changeCurrency(\'GBP\')" class="' + (cur === 'GBP' ? btnActive : btnIdle) + '">£ GBP</button>' +
-                '<button onclick="changeCurrency(\'INR\')" class="' + (cur === 'INR' ? btnActive : btnIdle) + '">₹ INR</button>' +
               '</div>'
             ) +
 

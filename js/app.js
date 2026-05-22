@@ -193,7 +193,7 @@
   // ── Formatting ─────────────────────────────────────────────────────────────
   function formatCurrency(n) {
     var c = getCurrency()
-    var localeMap = { EUR:'de-DE', USD:'en-US', GBP:'en-GB', INR:'en-IN' }
+    var localeMap = { EUR:'de-DE', USD:'en-US', GBP:'en-GB' }
     return new Intl.NumberFormat(localeMap[c] || 'en-US', { style:'currency', currency:c }).format(n || 0)
   }
   function formatDate(d) {
