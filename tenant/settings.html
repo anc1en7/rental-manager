@@ -41,8 +41,10 @@
       }
 
       function render() {
-        var theme = RM.getTheme()
-        var lang  = RM.getLang()
+        var theme   = RM.getTheme()
+        var lang    = RM.getLang()
+        var dateFmt = RM.getDateFormat()
+        var cur     = RM.getCurrency()
 
         document.getElementById('content').innerHTML =
           '<h1 class="text-2xl font-bold text-gray-900 mb-8">' + t('settings') + '</h1>' +
@@ -82,6 +84,24 @@
               '</div>'
             ) +
 
+            card(t('date_format'), t('date_format_hint'),
+              '<div class="grid grid-cols-2 gap-2">' +
+                '<button onclick="changeDateFmt(\'dmy\')" class="' + (dateFmt === 'dmy' ? btnActive : btnIdle) + '">DD/MM/YYYY</button>' +
+                '<button onclick="changeDateFmt(\'mdy\')" class="' + (dateFmt === 'mdy' ? btnActive : btnIdle) + '">MM/DD/YYYY</button>' +
+                '<button onclick="changeDateFmt(\'iso\')" class="' + (dateFmt === 'iso' ? btnActive : btnIdle) + '">YYYY-MM-DD</button>' +
+                '<button onclick="changeDateFmt(\'dot\')" class="' + (dateFmt === 'dot' ? btnActive : btnIdle) + '">DD.MM.YYYY</button>' +
+              '</div>'
+            ) +
+
+            card(t('currency'), t('currency_hint'),
+              '<div class="grid grid-cols-2 gap-2">' +
+                '<button onclick="changeCurrency(\'EUR\')" class="' + (cur === 'EUR' ? btnActive : btnIdle) + '">€ EUR</button>' +
+                '<button onclick="changeCurrency(\'USD\')" class="' + (cur === 'USD' ? btnActive : btnIdle) + '">$ USD</button>' +
+                '<button onclick="changeCurrency(\'GBP\')" class="' + (cur === 'GBP' ? btnActive : btnIdle) + '">£ GBP</button>' +
+                '<button onclick="changeCurrency(\'INR\')" class="' + (cur === 'INR' ? btnActive : btnIdle) + '">₹ INR</button>' +
+              '</div>'
+            ) +
+
           '</div>'
       }
 
@@ -106,14 +126,10 @@
         RM.toast(t('password_changed'))
       }
 
-      window.changeTheme = function(th) {
-        RM.setTheme(th)
-        render()
-      }
-
-      window.changeLang = function(l) {
-        RM.setLang(l)
-      }
+      window.changeTheme   = function(th) { RM.setTheme(th); render() }
+      window.changeLang    = function(l)  { RM.setLang(l) }
+      window.changeDateFmt = function(f)  { RM.setDateFormat(f); render() }
+      window.changeCurrency = function(c) { RM.setCurrency(c); render() }
 
       render()
     })()

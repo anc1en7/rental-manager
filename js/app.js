@@ -70,6 +70,8 @@
       display_name:'Display Name', profile_updated:'Profile updated.',
       security:'Security', security_hint:'Change your account password.',
       password_changed:'Password changed successfully.',
+      date_format:'Date Format', date_format_hint:'Choose how dates are displayed across the app.',
+      currency:'Currency', currency_hint:'Choose the currency used for rent amounts.',
     },
     de: {
       app_name:'RentManager', login:'Anmelden', logout:'Abmelden', email:'E-Mail', password:'Passwort',
@@ -129,6 +131,8 @@
       display_name:'Anzeigename', profile_updated:'Profil aktualisiert.',
       security:'Sicherheit', security_hint:'Ändere dein Kontopasswort.',
       password_changed:'Passwort erfolgreich geändert.',
+      date_format:'Datumsformat', date_format_hint:'Wähle die Darstellung von Datumsangaben in der App.',
+      currency:'Währung', currency_hint:'Wähle die Währung für Mietbeträge.',
     }
   }
 
@@ -180,13 +184,29 @@
     return user
   }
 
+  // ── Date format & currency preferences ────────────────────────────────────
+  function getDateFormat() { return localStorage.getItem('dateFormat') || 'dmy' }
+  function setDateFormat(f) { localStorage.setItem('dateFormat', f) }
+  function getCurrency()   { return localStorage.getItem('currency') || 'EUR' }
+  function setCurrency(c)  { localStorage.setItem('currency', c) }
+
   // ── Formatting ─────────────────────────────────────────────────────────────
   function formatCurrency(n) {
-    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(n || 0)
+    var c = getCurrency()
+    var localeMap = { EUR:'de-DE', USD:'en-US', GBP:'en-GB', INR:'en-IN' }
+    return new Intl.NumberFormat(localeMap[c] || 'en-US', { style:'currency', currency:c }).format(n || 0)
   }
   function formatDate(d) {
     if (!d) return t('not_available')
-    return new Intl.DateTimeFormat(getLang() === 'de' ? 'de-DE' : 'en-GB').format(new Date(d))
+    var date  = new Date(d)
+    var day   = String(date.getDate()).padStart(2, '0')
+    var month = String(date.getMonth() + 1).padStart(2, '0')
+    var year  = date.getFullYear()
+    var fmt   = getDateFormat()
+    if (fmt === 'mdy') return month + '/' + day + '/' + year
+    if (fmt === 'iso') return year  + '-' + month + '-' + day
+    if (fmt === 'dot') return day   + '.' + month + '.' + year
+    return day + '/' + month + '/' + year
   }
   function formatMonthYear(d) {
     if (!d) return ''
@@ -360,7 +380,10 @@
     ownerSidebar: ownerSidebar, tenantTopNav: tenantTopNav,
     setupOwnerPage: setupOwnerPage, setupTenantPage: setupTenantPage,
     showPageError: showPageError, generateRentRecords: generateRentRecords,
-    getTheme: getTheme, setTheme: setTheme, escHtml: escHtml,
+    getTheme: getTheme, setTheme: setTheme,
+    getDateFormat: getDateFormat, setDateFormat: setDateFormat,
+    getCurrency: getCurrency, setCurrency: setCurrency,
+    escHtml: escHtml,
     SUPABASE_URL: SUPABASE_URL,
   }
 })()
