@@ -28,12 +28,17 @@
       if (!user) return
 
       async function load() {
+        // Fetch all tenant profiles first
+        var pRes      = await RM.db.from('profiles').select('id,name').eq('role','tenant').order('name')
+        var allTenants = pRes.data ?? []
+
+        // Fetch owner's houses + rooms + active leases to build lease map
         var housesRes = await RM.db.from('houses').select('id,name').eq('owner_id', user.id)
         var houses    = housesRes.data ?? []
         var houseIds  = houses.map(function(h) { return h.id })
         var houseMap  = Object.fromEntries(houses.map(function(h) { return [h.id, h.name] }))
 
-        var rows = []
+        var leaseByTenant = {}
         if (houseIds.length) {
           var roomsRes = await RM.db.from('rooms').select('id,house_id,room_number').in('house_id', houseIds)
           var rooms    = roomsRes.data ?? []
@@ -41,38 +46,39 @@
 
           if (rooms.length) {
             var leasesRes = await RM.db.from('leases')
-              .select('id,tenant_id,room_id,start_date,end_date,monthly_rent,status')
+              .select('id,tenant_id,room_id,start_date,end_date,monthly_rent')
               .in('room_id', rooms.map(function(r) { return r.id }))
               .eq('status','active')
-              .order('created_at', { ascending: false })
             var leases = leasesRes.data ?? []
-
-            var tenantIds = []
-            leases.forEach(function(l) { if (tenantIds.indexOf(l.tenant_id) === -1) tenantIds.push(l.tenant_id) })
-            var profiles = []
-            if (tenantIds.length) {
-              var pRes = await RM.db.from('profiles').select('id,name').in('id', tenantIds)
-              profiles = pRes.data ?? []
-            }
-            var profileMap = Object.fromEntries(profiles.map(function(p) { return [p.id, p.name] }))
-
-            rows = leases.map(function(l) {
-              var room  = roomMap[l.room_id]
-              var house = room ? houseMap[room.house_id] : '—'
-              return {
-                tenant_id:    l.tenant_id,
-                name:         profileMap[l.tenant_id] ?? '—',
-                house:        house,
-                room_number:  room?.room_number ?? '—',
+            leases.forEach(function(l) {
+              var room = roomMap[l.room_id]
+              leaseByTenant[l.tenant_id] = {
+                house:        room ? houseMap[room.house_id] : '—',
+                room_number:  room ? room.room_number : '—',
                 start_date:   l.start_date,
                 end_date:     l.end_date,
                 monthly_rent: l.monthly_rent,
-                lease_id:     l.id,
                 room_id:      l.room_id,
               }
             })
           }
         }
+
+        // Merge: every tenant gets a row, lease info where it exists
+        var rows = allTenants.map(function(p) {
+          var lease = leaseByTenant[p.id]
+          return {
+            tenant_id:    p.id,
+            name:         p.name,
+            assigned:     !!lease,
+            house:        lease ? lease.house       : '—',
+            room_number:  lease ? lease.room_number : '—',
+            start_date:   lease ? lease.start_date  : null,
+            end_date:     lease ? lease.end_date    : null,
+            monthly_rent: lease ? lease.monthly_rent : null,
+            room_id:      lease ? lease.room_id     : null,
+          }
+        })
 
         document.getElementById('content').innerHTML =
           '<div class="flex items-center justify-between mb-8">' +
@@ -91,6 +97,7 @@
                   '<thead class="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">' +
                     '<tr>' +
                       '<th class="px-6 py-3 text-left">' + t('name') + '</th>' +
+                      '<th class="px-6 py-3 text-left">' + t('status') + '</th>' +
                       '<th class="px-6 py-3 text-left">' + t('house_label') + '</th>' +
                       '<th class="px-6 py-3 text-left">' + t('room_label') + '</th>' +
                       '<th class="px-6 py-3 text-left">' + t('lease_period') + '</th>' +
@@ -107,12 +114,19 @@
                             r.name +
                           '</div>' +
                         '</td>' +
+                        '<td class="px-6 py-4">' +
+                          (r.assigned
+                            ? '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">' + t('active') + '</span>'
+                            : '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Unassigned</span>') +
+                        '</td>' +
                         '<td class="px-6 py-4 text-gray-600">' + r.house + '</td>' +
                         '<td class="px-6 py-4 text-gray-600">' + r.room_number + '</td>' +
-                        '<td class="px-6 py-4 text-gray-600 text-xs">' + formatDate(r.start_date) + ' → ' + formatDate(r.end_date) + '</td>' +
-                        '<td class="px-6 py-4 text-right font-medium text-indigo-700">' + formatCurrency(r.monthly_rent) + '</td>' +
+                        '<td class="px-6 py-4 text-gray-600 text-xs">' + (r.start_date ? formatDate(r.start_date) + ' → ' + formatDate(r.end_date) : '—') + '</td>' +
+                        '<td class="px-6 py-4 text-right font-medium text-indigo-700">' + (r.monthly_rent ? formatCurrency(r.monthly_rent) : '—') + '</td>' +
                         '<td class="px-6 py-4 text-center">' +
-                          '<a href="room-detail.html?id=' + r.room_id + '" class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-medium transition">View Room</a>' +
+                          (r.assigned
+                            ? '<a href="room-detail.html?id=' + r.room_id + '" class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-medium transition">' + t('view_room') + '</a>'
+                            : '<span class="text-xs text-gray-400">—</span>') +
                         '</td>' +
                       '</tr>'
                     }).join('') +

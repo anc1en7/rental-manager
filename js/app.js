@@ -72,6 +72,7 @@
       password_changed:'Password changed successfully.',
       date_format:'Date Format', date_format_hint:'Choose how dates are displayed across the app.',
       currency:'Currency', currency_hint:'Choose the currency used for rent amounts.',
+      view_room:'View Room',
       room_photo:'Room Photo', upload_photo:'Upload Photo', change_photo:'Change Photo',
       remove_photo:'Remove Photo', photo_uploading:'Uploading…', photo_too_large:'File must be under 5 MB.',
     },
@@ -135,6 +136,7 @@
       password_changed:'Passwort erfolgreich geändert.',
       date_format:'Datumsformat', date_format_hint:'Wähle die Darstellung von Datumsangaben in der App.',
       currency:'Währung', currency_hint:'Wähle die Währung für Mietbeträge.',
+      view_room:'Zimmer ansehen',
       room_photo:'Zimmerfoto', upload_photo:'Foto hochladen', change_photo:'Foto ändern',
       remove_photo:'Foto entfernen', photo_uploading:'Wird hochgeladen…', photo_too_large:'Datei muss unter 5 MB sein.',
     }
