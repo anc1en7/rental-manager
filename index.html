@@ -198,7 +198,7 @@
               'Content-Type': 'application/json',
               'Authorization': 'Bearer ' + RM.SUPABASE_ANON_KEY,
             },
-            body: JSON.stringify({ email: email, redirectTo: window.location.origin + '/index.html' }),
+            body: JSON.stringify({ email: email, redirectTo: RM.indexUrl() }),
           })
           var body = await res.json()
           if (!res.ok) {

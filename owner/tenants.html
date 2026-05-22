@@ -165,7 +165,7 @@
               'Content-Type': 'application/json',
               'Authorization': 'Bearer ' + sessionRes.data.session.access_token,
             },
-            body: JSON.stringify({ name: name, email: email, redirectTo: window.location.origin + '/index.html' }),
+            body: JSON.stringify({ name: name, email: email, redirectTo: RM.indexUrl() }),
           })
           if (!res.ok) {
             var body = await res.json().catch(function() { return { error: String(res.status) + ' ' + res.statusText } })

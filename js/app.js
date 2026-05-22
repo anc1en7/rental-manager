@@ -171,6 +171,14 @@
     var p = window.location.pathname
     return (p.indexOf('/owner/') !== -1 || p.indexOf('/tenant/') !== -1) ? '../' : './'
   }
+  // Full URL to index.html — works on GitHub Pages subdirectory deployments
+  function indexUrl() {
+    var p = window.location.pathname
+    var base = (p.indexOf('/owner/') !== -1 || p.indexOf('/tenant/') !== -1)
+      ? p.replace(/\/(owner|tenant)\/[^/]*$/, '/')
+      : p.replace(/[^/]*$/, '')
+    return window.location.origin + base + 'index.html'
+  }
 
   // ── Auth ───────────────────────────────────────────────────────────────────
   async function getUser() {
@@ -392,7 +400,7 @@
     ownerSidebar: ownerSidebar, tenantTopNav: tenantTopNav,
     setupOwnerPage: setupOwnerPage, setupTenantPage: setupTenantPage,
     showPageError: showPageError, generateRentRecords: generateRentRecords,
-    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY,
+    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY, indexUrl: indexUrl,
     getTheme: getTheme, setTheme: setTheme,
     getDateFormat: getDateFormat, setDateFormat: setDateFormat,
     getCurrency: getCurrency, setCurrency: setCurrency,
