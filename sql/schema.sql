@@ -240,12 +240,7 @@ create policy "Owner can upload room images"
   with check (
     bucket_id = 'room-images'
     and auth.uid() is not null
-    and exists (
-      select 1 from public.rooms r
-      join public.houses h on h.id = r.house_id
-      where r.id::text = name
-        and h.owner_id = auth.uid()
-    )
+    and exists (select 1 from public.profiles where id = auth.uid() and role = 'owner')
   );
 
 create policy "Owner can update room images"
@@ -253,12 +248,7 @@ create policy "Owner can update room images"
   using (
     bucket_id = 'room-images'
     and auth.uid() is not null
-    and exists (
-      select 1 from public.rooms r
-      join public.houses h on h.id = r.house_id
-      where r.id::text = name
-        and h.owner_id = auth.uid()
-    )
+    and exists (select 1 from public.profiles where id = auth.uid() and role = 'owner')
   );
 
 create policy "Owner can delete room images"
@@ -266,10 +256,5 @@ create policy "Owner can delete room images"
   using (
     bucket_id = 'room-images'
     and auth.uid() is not null
-    and exists (
-      select 1 from public.rooms r
-      join public.houses h on h.id = r.house_id
-      where r.id::text = name
-        and h.owner_id = auth.uid()
-    )
+    and exists (select 1 from public.profiles where id = auth.uid() and role = 'owner')
   );
