@@ -109,6 +109,15 @@ create table public.rent_records (
 
 
 -- ==========================================
+-- ROOM PHOTOS
+-- ==========================================
+-- Run this block separately if adding to an existing database:
+--   alter table public.rooms add column image_url text;
+
+alter table public.rooms add column image_url text;
+
+
+-- ==========================================
 -- INDEXES
 -- ==========================================
 
@@ -210,4 +219,57 @@ create policy "tenant_reads_own_rent_records"
     exists (select 1 from public.leases
             where leases.id = rent_records.lease_id
               and leases.tenant_id = auth.uid())
+  );
+
+
+-- ==========================================
+-- STORAGE — room-images bucket
+-- ==========================================
+-- 1. Create a PUBLIC bucket named "room-images" in Supabase Dashboard
+--    Storage → New bucket → name: room-images → Public: ON
+-- 2. Run the policies below in SQL Editor.
+
+-- File path convention: {room_id}  (one file per room, overwritten on re-upload)
+
+create policy "Public can view room images"
+  on storage.objects for select
+  using (bucket_id = 'room-images');
+
+create policy "Owner can upload room images"
+  on storage.objects for insert
+  with check (
+    bucket_id = 'room-images'
+    and auth.uid() is not null
+    and exists (
+      select 1 from public.rooms r
+      join public.houses h on h.id = r.house_id
+      where r.id::text = name
+        and h.owner_id = auth.uid()
+    )
+  );
+
+create policy "Owner can update room images"
+  on storage.objects for update
+  using (
+    bucket_id = 'room-images'
+    and auth.uid() is not null
+    and exists (
+      select 1 from public.rooms r
+      join public.houses h on h.id = r.house_id
+      where r.id::text = name
+        and h.owner_id = auth.uid()
+    )
+  );
+
+create policy "Owner can delete room images"
+  on storage.objects for delete
+  using (
+    bucket_id = 'room-images'
+    and auth.uid() is not null
+    and exists (
+      select 1 from public.rooms r
+      join public.houses h on h.id = r.house_id
+      where r.id::text = name
+        and h.owner_id = auth.uid()
+    )
   );

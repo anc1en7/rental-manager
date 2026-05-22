@@ -78,9 +78,10 @@
                   var lease = leaseMap[room.id]
                   var isOccupied = !!lease
                   return '<div class="bg-white rounded-2xl border border-gray-200 flex flex-col overflow-hidden hover:shadow-sm transition">' +
+                    (room.image_url ? '<img src="' + room.image_url + '" class="w-full h-36 object-cover"/>' : '') +
                     '<a href="room-detail.html?id=' + room.id + '" class="flex-1 p-5 block group">' +
                       '<div class="flex items-start justify-between mb-3">' +
-                        '<div class="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center text-lg">🚪</div>' +
+                        (room.image_url ? '' : '<div class="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center text-lg">🚪</div>') +
                         badge(isOccupied ? 'occupied' : 'vacant') +
                       '</div>' +
                       '<h3 class="font-semibold text-gray-900 group-hover:text-indigo-700">' + t('room_label') + ' ' + room.room_number + '</h3>' +

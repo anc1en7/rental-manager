@@ -67,6 +67,8 @@
       function render() {
         var r = _room, h = _house, l = _lease
 
+        var photoLabel = r.image_url ? t('change_photo') : t('upload_photo')
+
         document.getElementById('content').innerHTML =
           '<div class="flex items-center gap-2 text-sm text-gray-500 mb-6">' +
             '<a href="houses.html" class="hover:text-indigo-600">' + t('houses') + '</a>' +
@@ -74,6 +76,20 @@
             '<a href="house-detail.html?id=' + h.id + '" class="hover:text-indigo-600">' + h.name + '</a>' +
             '<span>›</span>' +
             '<span class="text-gray-900 font-medium">' + t('room_label') + ' ' + r.room_number + '</span>' +
+          '</div>' +
+
+          '<div class="bg-white rounded-2xl border border-gray-200 overflow-hidden mb-6">' +
+            '<div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">' +
+              '<h2 class="text-sm font-semibold text-gray-900">' + t('room_photo') + '</h2>' +
+              '<div class="flex gap-2">' +
+                '<label for="photo-input" id="photo-label" class="cursor-pointer ' + btnS + ' text-xs">' + photoLabel + '</label>' +
+                (r.image_url ? '<button onclick="removePhoto()" class="' + btnD + ' text-xs">' + t('remove_photo') + '</button>' : '') +
+              '</div>' +
+            '</div>' +
+            (r.image_url
+              ? '<img src="' + r.image_url + '" class="w-full max-h-72 object-cover"/>'
+              : '<div class="flex items-center justify-center h-40 text-5xl text-gray-200">📷</div>') +
+            '<input type="file" id="photo-input" accept="image/*" class="hidden" onchange="uploadPhoto(this)"/>' +
           '</div>' +
 
           '<div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">' +
@@ -226,6 +242,36 @@
         RM.toast(t('success'))
         RM.closeModal()
         await load()
+      }
+
+      window.uploadPhoto = async function(input) {
+        var file = input.files[0]
+        if (!file) return
+        if (file.size > 5 * 1024 * 1024) { RM.toast(t('photo_too_large'), 'error'); return }
+        var label = document.getElementById('photo-label')
+        label.textContent = t('photo_uploading')
+
+        var { error: upErr } = await RM.db.storage
+          .from('room-images').upload(roomId, file, { upsert: true })
+        if (upErr) { RM.toast(upErr.message, 'error'); label.textContent = t('upload_photo'); return }
+
+        var { data: urlData } = RM.db.storage.from('room-images').getPublicUrl(roomId)
+        var url = urlData.publicUrl + '?v=' + Date.now()
+        var { error: dbErr } = await RM.db.from('rooms').update({ image_url: url }).eq('id', roomId)
+        if (dbErr) { RM.toast(dbErr.message, 'error'); return }
+
+        _room.image_url = url
+        RM.toast(t('success'))
+        render()
+      }
+
+      window.removePhoto = async function() {
+        if (!confirm(t('remove_photo') + '?')) return
+        await RM.db.storage.from('room-images').remove([roomId])
+        await RM.db.from('rooms').update({ image_url: null }).eq('id', roomId)
+        _room.image_url = null
+        RM.toast(t('success'))
+        render()
       }
 
       await load()
