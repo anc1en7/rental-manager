@@ -191,18 +191,29 @@
 
         btn.disabled = true
         btn.textContent = t('loading')
-        var res = await RM.db.auth.resetPasswordForEmail(email, {
-          redirectTo: window.location.origin + '/index.html'
-        })
+        try {
+          var res = await fetch(RM.SUPABASE_URL + '/functions/v1/send-password-reset', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + RM.SUPABASE_ANON_KEY,
+            },
+            body: JSON.stringify({ email: email, redirectTo: window.location.origin + '/index.html' }),
+          })
+          var body = await res.json()
+          if (!res.ok) {
+            errEl.textContent = body.error || t('error')
+            errEl.classList.remove('hidden')
+          } else {
+            okEl.textContent = t('reset_sent')
+            okEl.classList.remove('hidden')
+          }
+        } catch (err) {
+          errEl.textContent = t('error')
+          errEl.classList.remove('hidden')
+        }
         btn.disabled = false
         btn.textContent = t('send_reset_link')
-        if (res.error) {
-          errEl.textContent = res.error.message
-          errEl.classList.remove('hidden')
-        } else {
-          okEl.textContent = t('reset_sent')
-          okEl.classList.remove('hidden')
-        }
       })
 
       // ── Route to correct view ─────────────────────────────────────────────────

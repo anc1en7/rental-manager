@@ -392,6 +392,7 @@
     ownerSidebar: ownerSidebar, tenantTopNav: tenantTopNav,
     setupOwnerPage: setupOwnerPage, setupTenantPage: setupTenantPage,
     showPageError: showPageError, generateRentRecords: generateRentRecords,
+    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY,
     getTheme: getTheme, setTheme: setTheme,
     getDateFormat: getDateFormat, setDateFormat: setDateFormat,
     getCurrency: getCurrency, setCurrency: setCurrency,
