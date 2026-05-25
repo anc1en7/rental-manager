@@ -27,10 +27,13 @@
       var user = await RM.setupOwnerPage('tenants')
       if (!user) return
 
+      var _tenantMap = {}
+
       async function load() {
         // Fetch all tenant profiles first
         var pRes      = await RM.db.from('profiles').select('id,name').eq('role','tenant').order('name')
         var allTenants = pRes.data ?? []
+        _tenantMap = Object.fromEntries(allTenants.map(function(p) { return [p.id, p.name] }))
 
         // Fetch owner's houses + rooms + active leases to build lease map
         var housesRes = await RM.db.from('houses').select('id,name').eq('owner_id', user.id)
@@ -126,7 +129,7 @@
                         '<td class="px-6 py-4 text-center">' +
                           (r.assigned
                             ? '<a href="room-detail.html?id=' + r.room_id + '" class="text-xs px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-medium transition">' + t('view_room') + '</a>'
-                            : '<span class="text-xs text-gray-400">—</span>') +
+                            : '<button onclick="showAssignTenant(\'' + r.tenant_id + '\')" class="text-xs px-3 py-1.5 bg-gray-100 hover:bg-indigo-50 text-gray-700 hover:text-indigo-700 rounded-lg font-medium transition">' + t('assign_tenant') + '</button>') +
                         '</td>' +
                       '</tr>'
                     }).join('') +
@@ -182,8 +185,77 @@
         }
       }
 
+      window.showAssignTenant = async function(tenantId) {
+        var housesRes = await RM.db.from('houses').select('id,name').eq('owner_id', user.id).order('name')
+        var houses = housesRes.data ?? []
+        if (!houses.length) { RM.toast(t('error'), 'error'); return }
+        var houseOptions = houses.map(function(h) { return '<option value="' + h.id + '">' + h.name + '</option>' }).join('')
+        var today = new Date().toISOString().split('T')[0]
+        var tenantName = _tenantMap[tenantId] || ''
+        RM.openModal(t('assign_tenant') + (tenantName ? ' — ' + tenantName : ''),
+          '<div><label class="' + lbl + '">' + t('house_label') + ' *</label>' +
+            '<select id="f-house" class="' + inp + '" onchange="loadRoomsForHouse(this.value)">' +
+              '<option value="">' + t('house_label') + '</option>' + houseOptions +
+            '</select></div>' +
+          '<div><label class="' + lbl + '">Room *</label>' +
+            '<select id="f-room" class="' + inp + '"><option value="">Select a house first</option></select></div>' +
+          '<div class="grid grid-cols-2 gap-3">' +
+            '<div><label class="' + lbl + '">' + t('start_date') + ' *</label>' +
+              '<input id="f-start" type="date" class="' + inp + '" value="' + today + '"/></div>' +
+            '<div><label class="' + lbl + '">' + t('end_date') + ' *</label>' +
+              '<input id="f-end" type="date" class="' + inp + '"/></div>' +
+          '</div>' +
+          '<div class="grid grid-cols-2 gap-3">' +
+            '<div><label class="' + lbl + '">' + t('monthly_rent') + ' *</label>' +
+              '<input id="f-rent" type="number" step="0.01" class="' + inp + '"/></div>' +
+            '<div><label class="' + lbl + '">' + t('rent_due_day') + '</label>' +
+              '<input id="f-day" type="number" min="1" max="28" class="' + inp + '" value="1"/></div>' +
+          '</div>',
+          '<button onclick="RM.closeModal()" class="' + btnS + '">' + t('cancel') + '</button>' +
+          ' <button onclick="saveAssignTenant(\'' + tenantId + '\')" class="' + btnP + '">' + t('save') + '</button>')
+      }
+
+      window.loadRoomsForHouse = async function(houseId) {
+        var roomSelect = document.getElementById('f-room')
+        roomSelect.innerHTML = '<option value="">Loading…</option>'
+        if (!houseId) { roomSelect.innerHTML = '<option value="">Select a house first</option>'; return }
+        var roomsRes = await RM.db.from('rooms').select('id,room_number,monthly_rent').eq('house_id', houseId).order('room_number')
+        var rooms = roomsRes.data ?? []
+        if (!rooms.length) { roomSelect.innerHTML = '<option value="">No rooms in this house</option>'; return }
+        var occupiedRes = await RM.db.from('leases').select('room_id').in('room_id', rooms.map(function(r) { return r.id })).eq('status','active')
+        var occupiedIds = new Set((occupiedRes.data ?? []).map(function(l) { return l.room_id }))
+        var available = rooms.filter(function(r) { return !occupiedIds.has(r.id) })
+        if (!available.length) { roomSelect.innerHTML = '<option value="">No available rooms</option>'; return }
+        roomSelect.innerHTML = '<option value="">Select room</option>' +
+          available.map(function(r) { return '<option value="' + r.id + '" data-rent="' + (r.monthly_rent || '') + '">Room ' + r.room_number + '</option>' }).join('')
+        roomSelect.onchange = function() {
+          var rent = roomSelect.options[roomSelect.selectedIndex].dataset.rent
+          if (rent) document.getElementById('f-rent').value = rent
+        }
+      }
+
+      window.saveAssignTenant = async function(tenantId) {
+        var room_id      = document.getElementById('f-room').value
+        var start_date   = document.getElementById('f-start').value
+        var end_date     = document.getElementById('f-end').value
+        var monthly_rent = parseFloat(document.getElementById('f-rent').value)
+        var rent_due_day = parseInt(document.getElementById('f-day').value) || 1
+        if (!room_id || !start_date || !end_date || isNaN(monthly_rent)) { RM.toast(t('error'), 'error'); return }
+        if (new Date(end_date) <= new Date(start_date)) { RM.toast(t('error'), 'error'); return }
+        var leaseRes = await RM.db.from('leases')
+          .insert({ room_id: room_id, tenant_id: tenantId, start_date: start_date, end_date: end_date, monthly_rent: monthly_rent, rent_due_day: rent_due_day, status: 'active' })
+          .select().single()
+        if (leaseRes.error) { RM.toast(t('error'), 'error'); console.error(leaseRes.error); return }
+        try {
+          await RM.generateRentRecords(leaseRes.data.id, start_date, end_date, monthly_rent, rent_due_day)
+        } catch(e) { console.error('rent record gen failed', e) }
+        RM.toast(t('success'))
+        RM.closeModal()
+        await load()
+      }
+
       await load()
     })()
-  </script>
+</script>
 </body>
 </html>
