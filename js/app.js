@@ -78,6 +78,9 @@
       view_room:'View Room',
       room_photo:'Room Photo', upload_photo:'Upload Photo', change_photo:'Change Photo',
       remove_photo:'Remove Photo', photo_uploading:'Uploading…', photo_too_large:'File must be under 5 MB.',
+      delete_tenant:'Delete Tenant',
+      delete_tenant_confirm:'Permanently delete this tenant? Their account and all historical data will be removed.',
+      delete_tenant_has_lease:'Cannot delete a tenant with an active lease. End the lease first.',
     },
     de: {
       app_name:'RentManager', login:'Anmelden', logout:'Abmelden', email:'E-Mail', password:'Passwort',
@@ -145,6 +148,9 @@
       view_room:'Zimmer ansehen',
       room_photo:'Zimmerfoto', upload_photo:'Foto hochladen', change_photo:'Foto ändern',
       remove_photo:'Foto entfernen', photo_uploading:'Wird hochgeladen…', photo_too_large:'Datei muss unter 5 MB sein.',
+      delete_tenant:'Mieter löschen',
+      delete_tenant_confirm:'Diesen Mieter dauerhaft löschen? Ihr Konto und alle Daten werden entfernt.',
+      delete_tenant_has_lease:'Mieter mit aktivem Mietvertrag kann nicht gelöscht werden. Beende zuerst den Mietvertrag.',
     }
   }
 
