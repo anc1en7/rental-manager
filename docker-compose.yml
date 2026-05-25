@@ -3,7 +3,7 @@ services:
     build: .
     restart: unless-stopped
     networks:
-      - traefik
+      - proxy
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.rental-manager.rule=Host(`hms.appetitico.com`)"
@@ -12,5 +12,5 @@ services:
       - "traefik.http.services.rental-manager.loadbalancer.server.port=80"
 
 networks:
-  traefik:
+  proxy:
     external: true
