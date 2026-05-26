@@ -224,7 +224,7 @@ Provide: (1) a one-sentence overall assessment, (2) name any at-risk tenants wit
         'Authorization': 'Bearer ' + Deno.env.get('ZAI_API_KEY')!,
       },
       body: JSON.stringify({
-        model:      'glm-4.5-air',
+        model:      'glm-4.5-flash',
         max_tokens: 512,
         messages:   [{ role: 'user', content: prompt }],
       }),
