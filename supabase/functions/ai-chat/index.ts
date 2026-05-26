@@ -216,29 +216,30 @@ ${tenantSummary}
 Provide: (1) a one-sentence overall assessment, (2) name any at-risk tenants with a specific concern, (3) one concrete recommendation. Be concise and specific.`
     }
 
-    // ── 4. Call z.ai API (OpenAI-compatible) ────────────────────────────
-    const zaiRes = await fetch('https://api.z.ai/api/paas/v4/chat/completions', {
+    // ── 4. Call Anthropic API ────────────────────────────────────────────
+    const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
-        'Content-Type':  'application/json',
-        'Authorization': 'Bearer ' + Deno.env.get('ZAI_API_KEY')!,
+        'Content-Type':      'application/json',
+        'x-api-key':         Deno.env.get('ANTHROPIC_API_KEY')!,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model:      'glm-4.5-flash',
+        model:      'claude-haiku-4-5-20251001',
         max_tokens: 512,
         messages:   [{ role: 'user', content: prompt }],
       }),
     })
 
-    if (!zaiRes.ok) {
-      const errText = await zaiRes.text()
-      console.error('z.ai API error:', zaiRes.status, errText)
+    if (!anthropicRes.ok) {
+      const errText = await anthropicRes.text()
+      console.error('Anthropic API error:', anthropicRes.status, errText)
       return new Response(JSON.stringify({ error: 'AI service error. Please try again.' }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const zaiData = await zaiRes.json()
-    const content = zaiData.choices?.[0]?.message?.content ?? ''
+    const anthropicData = await anthropicRes.json()
+    const content = anthropicData.content?.[0]?.text ?? ''
 
     return new Response(JSON.stringify({ content }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
