@@ -73,6 +73,7 @@
                     '</a>' +
                     '<div class="flex border-t border-gray-100">' +
                       '<button onclick=\'editHouse(' + JSON.stringify(h) + ')\' class="flex-1 text-xs py-2.5 text-indigo-600 hover:bg-indigo-50 font-medium transition">' + t('edit') + '</button>' +
+                      '<button onclick="duplicateHouse(\'' + h.id + '\')" class="flex-1 text-xs py-2.5 text-gray-600 hover:bg-gray-50 font-medium transition border-l border-gray-100">' + t('duplicate') + '</button>' +
                       '<button onclick="deleteHouse(\'' + h.id + '\',\'' + safeName + '\')" class="flex-1 text-xs py-2.5 text-red-600 hover:bg-red-50 font-medium transition border-l border-gray-100">' + t('delete') + '</button>' +
                     '</div>' +
                   '</div>'
@@ -116,6 +117,35 @@
         if (res.error) { RM.toast(t('error'), 'error'); return }
         RM.toast(t('success'))
         RM.closeModal()
+        await load()
+      }
+
+      window.duplicateHouse = async function(id) {
+        var hRes = await RM.db.from('houses').select('name,address,city,country').eq('id', id).single()
+        if (hRes.error) { RM.toast(t('error'), 'error'); return }
+        var h = hRes.data
+
+        var newRes = await RM.db.from('houses')
+          .insert({ name: h.name + ' (Copy)', address: h.address, city: h.city, country: h.country, owner_id: user.id })
+          .select().single()
+        if (newRes.error) { RM.toast(t('error'), 'error'); return }
+        var newId = newRes.data.id
+
+        var roomsRes = await RM.db.from('rooms')
+          .select('room_number,floor,area_sqm,monthly_rent,utilities_included,utility_details,description')
+          .eq('house_id', id)
+        var rooms = roomsRes.data ?? []
+        if (rooms.length) {
+          var copies = rooms.map(function(r) {
+            return { house_id: newId, room_number: r.room_number, floor: r.floor, area_sqm: r.area_sqm,
+              monthly_rent: r.monthly_rent, utilities_included: r.utilities_included,
+              utility_details: r.utility_details, description: r.description }
+          })
+          var insertRes = await RM.db.from('rooms').insert(copies)
+          if (insertRes.error) { RM.toast(t('error'), 'error'); return }
+        }
+
+        RM.toast(t('success'))
         await load()
       }
 
