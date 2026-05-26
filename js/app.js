@@ -81,6 +81,10 @@
       delete_tenant:'Delete Tenant',
       delete_tenant_confirm:'Permanently delete this tenant? Their account and all historical data will be removed.',
       delete_tenant_has_lease:'Cannot delete a tenant with an active lease. End the lease first.',
+      create_account:'Create Account', signup_subtitle:'Set up your owner account to manage properties.',
+      signup_check_email:'We sent a confirmation link to your email. Click it to activate your account, then sign in.',
+      already_have_account:'Already have an account?', sign_in:'Sign in',
+      signup_as_owner:'New owner? Sign up',
     },
     de: {
       app_name:'RentManager', login:'Anmelden', logout:'Abmelden', email:'E-Mail', password:'Passwort',
@@ -151,6 +155,10 @@
       delete_tenant:'Mieter löschen',
       delete_tenant_confirm:'Diesen Mieter dauerhaft löschen? Ihr Konto und alle Daten werden entfernt.',
       delete_tenant_has_lease:'Mieter mit aktivem Mietvertrag kann nicht gelöscht werden. Beende zuerst den Mietvertrag.',
+      create_account:'Konto erstellen', signup_subtitle:'Erstelle dein Eigentümer-Konto zur Verwaltung deiner Immobilien.',
+      signup_check_email:'Wir haben dir einen Bestätigungslink per E-Mail gesendet. Klicke ihn an, um dein Konto zu aktivieren, und melde dich dann an.',
+      already_have_account:'Bereits ein Konto?', sign_in:'Anmelden',
+      signup_as_owner:'Neuer Eigentümer? Registrieren',
     }
   }
 

@@ -82,6 +82,9 @@
             Login
           </button>
         </form>
+        <p class="text-center text-sm text-gray-500 mt-5">
+          <a id="signup-link" href="owner/signup.html" class="text-indigo-600 hover:text-indigo-700 font-medium">New owner? Sign up</a>
+        </p>
       </div>
 
       <!-- Forgot password view -->
@@ -143,6 +146,7 @@
         document.getElementById('lbl-pw').textContent     = t('password')
         document.getElementById('submit-btn').textContent = t('login')
         document.getElementById('forgot-link').textContent = t('forgot_password')
+        document.getElementById('signup-link').textContent = t('signup_as_owner')
         // Set-password view
         document.getElementById('setpw-title').textContent    = t('set_password')
         document.getElementById('setpw-subtitle').textContent = t('set_password_subtitle')

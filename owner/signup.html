@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
+  <title>RentManager — Sign Up</title>
+  <script src="../js/theme-init.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="../css/theme.css"/>
+  <script src="../js/app.js"></script>
+</head>
+<body class="bg-gradient-to-br from-indigo-50 via-white to-slate-50 min-h-screen flex items-center justify-center p-4">
+
+  <div class="w-full max-w-md">
+    <!-- Language + theme toggles -->
+    <div class="flex justify-end gap-2 mb-4">
+      <button id="theme-btn" type="button" title="Toggle theme"
+        class="text-sm px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 text-gray-600 font-medium transition">
+      </button>
+      <button id="lang-btn" type="button"
+        class="text-sm px-3 py-1.5 bg-white border border-gray-200 rounded-xl shadow-sm hover:bg-gray-50 text-gray-600 font-medium transition">
+        DE
+      </button>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+      <!-- Logo -->
+      <div class="flex items-center gap-3 mb-8">
+        <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-lg select-none">R</div>
+        <div>
+          <h1 class="text-xl font-bold text-gray-900">RentManager</h1>
+          <p class="text-xs text-gray-400">Property Management</p>
+        </div>
+      </div>
+
+      <!-- Signup form -->
+      <div id="signup-view">
+        <div class="mb-6">
+          <h2 id="lbl-title" class="text-base font-semibold text-gray-800 mb-1">Create Account</h2>
+          <p id="lbl-subtitle" class="text-sm text-gray-500">Set up your owner account to manage properties.</p>
+        </div>
+        <form id="form" class="space-y-4" novalidate>
+          <div>
+            <label id="lbl-name" for="name" class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <input id="name" type="text" required autocomplete="name"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition"/>
+          </div>
+          <div>
+            <label id="lbl-email" for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <input id="email" type="email" required autocomplete="email"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition"/>
+          </div>
+          <div>
+            <label id="lbl-pw" for="pw" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input id="pw" type="password" required autocomplete="new-password"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition"/>
+          </div>
+          <div>
+            <label id="lbl-pw2" for="pw2" class="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <input id="pw2" type="password" required autocomplete="new-password"
+              class="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm transition"/>
+          </div>
+          <p id="err" class="hidden text-sm text-red-600 bg-red-50 px-4 py-2.5 rounded-xl"></p>
+          <button id="submit-btn" type="submit"
+            class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl transition text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+            Create Account
+          </button>
+        </form>
+        <p class="text-center text-sm text-gray-500 mt-5">
+          <span id="lbl-have-account">Already have an account?</span>
+          <a id="link-signin" href="../index.html" class="text-indigo-600 hover:text-indigo-700 font-medium ml-1">Sign in</a>
+        </p>
+      </div>
+
+      <!-- Success state (shown after signup when email confirmation is required) -->
+      <div id="success-view" class="hidden text-center space-y-4">
+        <div class="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-2xl">✉️</div>
+        <div>
+          <h2 class="text-base font-semibold text-gray-800 mb-1">Check your email</h2>
+          <p id="lbl-check-email" class="text-sm text-gray-500">We sent a confirmation link to your email. Click it to activate your account, then sign in.</p>
+        </div>
+        <a href="../index.html"
+          class="inline-block mt-2 text-sm text-indigo-600 hover:text-indigo-700 font-medium">← Sign in</a>
+      </div>
+    </div>
+
+    <p class="text-center text-xs text-gray-400 mt-6">RentManager &copy; 2025</p>
+  </div>
+
+  <script>
+    (function() {
+      var t = RM.t
+
+      // ── Theme ──────────────────────────────────────────────────────────────────
+      function applyThemeBtn() {
+        document.getElementById('theme-btn').textContent = RM.getTheme() === 'dark' ? '☀' : '☾'
+      }
+      applyThemeBtn()
+      document.getElementById('theme-btn').addEventListener('click', function() {
+        RM.setTheme(RM.getTheme() === 'dark' ? 'light' : 'dark')
+        applyThemeBtn()
+      })
+
+      // ── Language ───────────────────────────────────────────────────────────────
+      function applyLang() {
+        var lang = RM.getLang()
+        document.documentElement.lang = lang
+        document.getElementById('lang-btn').textContent   = lang === 'en' ? 'DE' : 'EN'
+        document.getElementById('lbl-title').textContent   = t('create_account')
+        document.getElementById('lbl-subtitle').textContent = t('signup_subtitle')
+        document.getElementById('lbl-name').textContent    = t('tenant_name')
+        document.getElementById('lbl-email').textContent   = t('email')
+        document.getElementById('lbl-pw').textContent      = t('password')
+        document.getElementById('lbl-pw2').textContent     = t('confirm_password')
+        document.getElementById('submit-btn').textContent  = t('create_account')
+        document.getElementById('lbl-have-account').textContent = t('already_have_account')
+        document.getElementById('link-signin').textContent = t('sign_in')
+        document.getElementById('lbl-check-email').textContent  = t('signup_check_email')
+      }
+      applyLang()
+
+      document.getElementById('lang-btn').addEventListener('click', function() {
+        RM.setLang(RM.getLang() === 'en' ? 'de' : 'en')
+      })
+
+      // Redirect already-logged-in users
+      ;(async function() {
+        var sessionRes = await RM.db.auth.getSession()
+        if (!sessionRes.data.session) return
+        var profRes = await RM.db.from('profiles').select('role').eq('id', sessionRes.data.session.user.id).single()
+        window.location.href = profRes.data?.role === 'owner'
+          ? 'dashboard.html' : '../tenant/dashboard.html'
+      })()
+
+      // ── Signup form ────────────────────────────────────────────────────────────
+      document.getElementById('form').addEventListener('submit', function(e) {
+        e.preventDefault()
+        var btn  = document.getElementById('submit-btn')
+        var err  = document.getElementById('err')
+        var name = document.getElementById('name').value.trim()
+        var email = document.getElementById('email').value.trim()
+        var pw   = document.getElementById('pw').value
+        var pw2  = document.getElementById('pw2').value
+
+        err.classList.add('hidden')
+
+        if (!name || !email || !pw) {
+          err.textContent = t('error')
+          err.classList.remove('hidden')
+          return
+        }
+        if (pw.length < 8) {
+          err.textContent = t('password_too_short')
+          err.classList.remove('hidden')
+          return
+        }
+        if (pw !== pw2) {
+          err.textContent = t('password_mismatch')
+          err.classList.remove('hidden')
+          return
+        }
+
+        btn.disabled = true
+        btn.textContent = t('loading')
+
+        ;(async function() {
+          var res = await RM.db.auth.signUp({
+            email: email,
+            password: pw,
+            options: {
+              data: { name: name, role: 'owner' },
+              emailRedirectTo: window.location.origin + '/index.html',
+            },
+          })
+
+          if (res.error) {
+            err.textContent = res.error.message
+            err.classList.remove('hidden')
+            btn.disabled = false
+            btn.textContent = t('create_account')
+            return
+          }
+
+          // If session is present, email confirmation is disabled — go straight to dashboard
+          if (res.data.session) {
+            window.location.href = 'dashboard.html'
+            return
+          }
+
+          // Email confirmation required — show success state
+          document.getElementById('signup-view').classList.add('hidden')
+          document.getElementById('success-view').classList.remove('hidden')
+        })()
+      })
+    })()
+  </script>
+</body>
+</html>
