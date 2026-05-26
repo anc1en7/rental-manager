@@ -85,6 +85,13 @@
       signup_check_email:'We sent a confirmation link to your email. Click it to activate your account, then sign in.',
       already_have_account:'Already have an account?', sign_in:'Sign in',
       signup_as_owner:'New owner? Sign up',
+      ai_assistant:'AI Assistant',
+      ai_portfolio_insights:'Portfolio Insights', ai_draft_message:'Draft Message', ai_rent_analysis:'Rent Analysis',
+      ai_get_insights:'Get Insights', ai_generate_draft:'Generate Draft', ai_analyze:'Analyze',
+      ai_generating:'Generating…', ai_copy:'Copy', ai_copied:'Copied!',
+      ai_select_tenant:'— Select Tenant —',
+      ai_instructions_hint:'e.g. remind about overdue rent, welcome message…',
+      ai_no_tenants:'No active tenants found.',
     },
     de: {
       app_name:'RentManager', login:'Anmelden', logout:'Abmelden', email:'E-Mail', password:'Passwort',
@@ -159,6 +166,13 @@
       signup_check_email:'Wir haben dir einen Bestätigungslink per E-Mail gesendet. Klicke ihn an, um dein Konto zu aktivieren, und melde dich dann an.',
       already_have_account:'Bereits ein Konto?', sign_in:'Anmelden',
       signup_as_owner:'Neuer Eigentümer? Registrieren',
+      ai_assistant:'KI-Assistent',
+      ai_portfolio_insights:'Portfolio-Analyse', ai_draft_message:'Nachricht verfassen', ai_rent_analysis:'Mietzahlungsanalyse',
+      ai_get_insights:'Analyse starten', ai_generate_draft:'Entwurf erstellen', ai_analyze:'Analysieren',
+      ai_generating:'Wird erstellt…', ai_copy:'Kopieren', ai_copied:'Kopiert!',
+      ai_select_tenant:'— Mieter auswählen —',
+      ai_instructions_hint:'z. B. an Mietrückstand erinnern, Willkommensnachricht…',
+      ai_no_tenants:'Keine aktiven Mieter gefunden.',
     }
   }
 

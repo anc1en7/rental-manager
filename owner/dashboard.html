@@ -40,6 +40,14 @@
           leases = lRes.data ?? []
         }
 
+        var activeTenants = []
+        if (leases.length) {
+          var tenantIds = leases.map(function(l) { return l.tenant_id })
+            .filter(function(id, i, a) { return a.indexOf(id) === i })
+          var tRes = await RM.db.from('profiles').select('id,name').in('id', tenantIds).order('name')
+          activeTenants = tRes.data ?? []
+        }
+
         var rentRecords = []
         if (leases.length) {
           var now = new Date()
@@ -97,6 +105,49 @@
                     '</a>'
                   }).join('') +
                 '</div>') +
+          '</div>' +
+
+          '<div class="mt-10">' +
+            '<h2 class="text-base font-semibold text-gray-900 mb-4">&#10024; ' + t('ai_assistant') + '</h2>' +
+            '<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">' +
+
+              '<div class="bg-white rounded-2xl border border-gray-200 p-5">' +
+                '<div class="flex items-center gap-3 mb-4">' +
+                  '<div class="w-9 h-9 bg-violet-50 rounded-xl flex items-center justify-center text-lg">&#128202;</div>' +
+                  '<span class="text-sm font-semibold text-gray-900">' + t('ai_portfolio_insights') + '</span>' +
+                '</div>' +
+                '<button id="btn-insights" onclick="callAI(\'portfolio_insights\')" class="' + RM.btnP + ' w-full">' + t('ai_get_insights') + '</button>' +
+                '<div id="result-insights" class="hidden mt-4"></div>' +
+              '</div>' +
+
+              '<div class="bg-white rounded-2xl border border-gray-200 p-5">' +
+                '<div class="flex items-center gap-3 mb-4">' +
+                  '<div class="w-9 h-9 bg-blue-50 rounded-xl flex items-center justify-center text-lg">&#9993;&#65039;</div>' +
+                  '<span class="text-sm font-semibold text-gray-900">' + t('ai_draft_message') + '</span>' +
+                '</div>' +
+                (activeTenants.length === 0
+                  ? '<p class="text-sm text-gray-400">' + t('ai_no_tenants') + '</p>'
+                  : '<div class="space-y-3">' +
+                      '<select id="ai-tenant" class="' + RM.inp + '">' +
+                        '<option value="">' + t('ai_select_tenant') + '</option>' +
+                        activeTenants.map(function(tn) { return '<option value="' + tn.id + '">' + RM.escHtml(tn.name) + '</option>' }).join('') +
+                      '</select>' +
+                      '<textarea id="ai-instructions" rows="2" placeholder="' + t('ai_instructions_hint') + '" class="' + RM.inp + '"></textarea>' +
+                      '<button id="btn-draft" onclick="callAI(\'draft_message\')" class="' + RM.btnP + ' w-full">' + t('ai_generate_draft') + '</button>' +
+                    '</div>') +
+                '<div id="result-draft" class="hidden mt-4"></div>' +
+              '</div>' +
+
+              '<div class="bg-white rounded-2xl border border-gray-200 p-5">' +
+                '<div class="flex items-center gap-3 mb-4">' +
+                  '<div class="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center text-lg">&#128179;</div>' +
+                  '<span class="text-sm font-semibold text-gray-900">' + t('ai_rent_analysis') + '</span>' +
+                '</div>' +
+                '<button id="btn-analysis" onclick="callAI(\'rent_analysis\')" class="' + RM.btnP + ' w-full">' + t('ai_analyze') + '</button>' +
+                '<div id="result-analysis" class="hidden mt-4"></div>' +
+              '</div>' +
+
+            '</div>' +
           '</div>'
       }
 
@@ -108,6 +159,77 @@
           '</div>' +
           '<div class="text-xl font-bold text-gray-900 ' + text + '">' + value + '</div>' +
         '</div>'
+      }
+
+      window.callAI = async function(type) {
+        var btnMap    = { portfolio_insights: 'btn-insights', draft_message: 'btn-draft', rent_analysis: 'btn-analysis' }
+        var resultMap = { portfolio_insights: 'result-insights', draft_message: 'result-draft', rent_analysis: 'result-analysis' }
+        var labelMap  = { portfolio_insights: t('ai_get_insights'), draft_message: t('ai_generate_draft'), rent_analysis: t('ai_analyze') }
+
+        var btn    = document.getElementById(btnMap[type])
+        var result = document.getElementById(resultMap[type])
+        if (!btn || !result) return
+
+        var tenantId = null, instructions = ''
+        if (type === 'draft_message') {
+          var sel = document.getElementById('ai-tenant')
+          if (!sel || !sel.value) { RM.toast(t('ai_select_tenant'), 'error'); return }
+          tenantId     = sel.value
+          instructions = (document.getElementById('ai-instructions') ? document.getElementById('ai-instructions').value : '').trim()
+        }
+
+        btn.disabled    = true
+        btn.textContent = t('ai_generating')
+        result.className = 'hidden mt-4'
+
+        try {
+          var sessionRes = await RM.db.auth.getSession()
+          if (!sessionRes.data || !sessionRes.data.session || !sessionRes.data.session.access_token) {
+            RM.toast('Authentication required. Please log in again.', 'error'); return
+          }
+
+          var body = { type: type }
+          if (tenantId)     body.tenant_id    = tenantId
+          if (instructions) body.instructions = instructions
+
+          var res = await fetch(RM.SUPABASE_URL + '/functions/v1/ai-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + sessionRes.data.session.access_token },
+            body: JSON.stringify(body),
+          })
+
+          var resBody = await res.json().catch(function() { return { error: res.status + ' ' + res.statusText } })
+
+          if (!res.ok) {
+            result.className = 'mt-4'
+            result.innerHTML = '<div class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">' + RM.escHtml(resBody.error || t('error')) + '</div>'
+            return
+          }
+
+          var text = resBody.content || ''
+          result.className = 'mt-4'
+          result.innerHTML =
+            '<div class="bg-gray-50 border border-gray-200 rounded-xl p-4">' +
+              '<p class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">' + RM.escHtml(text) + '</p>' +
+              '<button onclick="copyAIResult(this)" data-text="' + RM.escHtml(text) + '" class="mt-3 text-xs px-3 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 font-medium transition">' + t('ai_copy') + '</button>' +
+            '</div>'
+
+        } catch (err) {
+          result.className = 'mt-4'
+          result.innerHTML = '<div class="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">' + RM.escHtml(String(err)) + '</div>'
+          console.error('AI card error:', err)
+        } finally {
+          btn.disabled    = false
+          btn.textContent = labelMap[type]
+        }
+      }
+
+      window.copyAIResult = function(btn) {
+        var text = btn.getAttribute('data-text')
+        navigator.clipboard.writeText(text).then(function() {
+          btn.textContent = t('ai_copied')
+          setTimeout(function() { btn.textContent = t('ai_copy') }, 2000)
+        }).catch(function() { RM.toast(t('error'), 'error') })
       }
 
       try {
