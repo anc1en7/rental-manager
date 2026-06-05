@@ -1,5 +1,5 @@
 -- ============================================================
--- RentManager — Property Sharing Feature
+-- RentManager — Room Sharing Feature
 -- ============================================================
 -- Run this in Supabase Dashboard → SQL Editor → New query.
 -- Requires pgcrypto (pre-installed on all Supabase projects).
@@ -14,7 +14,7 @@ create extension if not exists pgcrypto;
 
 create table public.property_shares (
   id            uuid        default gen_random_uuid() primary key,
-  house_id      uuid        not null references public.houses(id) on delete cascade,
+  room_id       uuid        not null references public.rooms(id) on delete cascade,
   owner_id      uuid        not null references public.profiles(id) on delete cascade,
   token         text        not null unique,
   share_type    text        not null default 'public' check (share_type in ('public', 'private')),
@@ -26,7 +26,7 @@ create table public.property_shares (
 );
 
 create index idx_property_shares_token on public.property_shares(token);
-create index idx_property_shares_house on public.property_shares(house_id);
+create index idx_property_shares_room  on public.property_shares(room_id);
 create index idx_property_shares_owner on public.property_shares(owner_id);
 
 alter table public.property_shares enable row level security;
@@ -39,11 +39,11 @@ create policy "owner_all_property_shares"
 -- ==========================================
 -- FUNCTION: create_property_share
 -- ==========================================
--- Called by authenticated owner to generate a share token.
+-- Called by authenticated owner to generate a share token for a room.
 -- Hashes the password server-side using bcrypt (pgcrypto).
 
 create or replace function public.create_property_share(
-  p_house_id   uuid,
+  p_room_id    uuid,
   p_share_type text,
   p_password   text        default null,
   p_show_rent  boolean     default true,
@@ -54,9 +54,11 @@ declare
   v_token text;
   v_hash  text;
 begin
-  -- Verify caller owns this house
+  -- Verify caller owns the room (through houses)
   if not exists (
-    select 1 from public.houses where id = p_house_id and owner_id = auth.uid()
+    select 1 from public.rooms r
+    join public.houses h on h.id = r.house_id
+    where r.id = p_room_id and h.owner_id = auth.uid()
   ) then
     raise exception 'unauthorized';
   end if;
@@ -76,9 +78,9 @@ begin
   end loop;
 
   insert into public.property_shares
-    (house_id, owner_id, token, share_type, password_hash, show_rent, expires_at)
+    (room_id, owner_id, token, share_type, password_hash, show_rent, expires_at)
   values
-    (p_house_id, auth.uid(), v_token, p_share_type, v_hash, p_show_rent, p_expires_at);
+    (p_room_id, auth.uid(), v_token, p_share_type, v_hash, p_show_rent, p_expires_at);
 
   return v_token;
 end;
@@ -92,7 +94,7 @@ grant execute on function public.create_property_share(uuid, text, text, boolean
 -- ==========================================
 -- Public endpoint — called without authentication.
 -- Validates token, checks password (private shares), then
--- returns house + room data. Increments view_count on success.
+-- returns room + house data. Increments view_count on success.
 
 create or replace function public.get_share_data(
   p_token    text,
@@ -100,9 +102,10 @@ create or replace function public.get_share_data(
 )
 returns json language plpgsql security definer as $$
 declare
-  v_share public.property_shares%rowtype;
-  v_house public.houses%rowtype;
-  v_rooms json;
+  v_share       public.property_shares%rowtype;
+  v_room        public.rooms%rowtype;
+  v_house       public.houses%rowtype;
+  v_is_available boolean;
 begin
   -- Look up share by token
   select * into v_share from public.property_shares where token = p_token;
@@ -128,34 +131,30 @@ begin
   -- All checks passed — count this view
   update public.property_shares set view_count = view_count + 1 where id = v_share.id;
 
-  -- Fetch house
-  select * into v_house from public.houses where id = v_share.house_id;
+  -- Fetch room and its house
+  select * into v_room  from public.rooms  where id = v_share.room_id;
+  select * into v_house from public.houses where id = v_room.house_id;
 
-  -- Fetch rooms with live availability status
-  select json_agg(
-    json_build_object(
-      'id',                 r.id,
-      'room_number',        r.room_number,
-      'floor',              r.floor,
-      'area_sqm',           r.area_sqm,
-      'monthly_rent',       r.monthly_rent,
-      'utilities_included', r.utilities_included,
-      'utility_details',    r.utility_details,
-      'description',        r.description,
-      'image_url',          r.image_url,
-      'is_available',       not exists (
-        select 1 from public.leases l
-        where l.room_id = r.id and l.status = 'active'
-      )
-    ) order by r.room_number
-  )
-  into v_rooms
-  from public.rooms r
-  where r.house_id = v_house.id;
+  -- Check availability
+  select not exists (
+    select 1 from public.leases l
+    where l.room_id = v_room.id and l.status = 'active'
+  ) into v_is_available;
 
   return json_build_object(
+    'room', json_build_object(
+      'id',                 v_room.id,
+      'room_number',        v_room.room_number,
+      'floor',              v_room.floor,
+      'area_sqm',           v_room.area_sqm,
+      'monthly_rent',       v_room.monthly_rent,
+      'utilities_included', v_room.utilities_included,
+      'utility_details',    v_room.utility_details,
+      'description',        v_room.description,
+      'image_url',          v_room.image_url,
+      'is_available',       v_is_available
+    ),
     'house',      row_to_json(v_house),
-    'rooms',      coalesce(v_rooms, '[]'::json),
     'show_rent',  v_share.show_rent,
     'share_type', v_share.share_type
   );

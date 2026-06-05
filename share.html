@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏠</text></svg>">
-  <title>Property Listing — RentManager</title>
+  <title>Room Listing — RentManager</title>
   <script src="./js/theme-init.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -13,17 +13,17 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
 
-  <!-- Loading state -->
+  <!-- Loading -->
   <div id="state-loading" class="flex items-center justify-center min-h-screen">
     <p class="text-gray-400 text-sm">Loading…</p>
   </div>
 
-  <!-- Error state -->
+  <!-- Error -->
   <div id="state-error" class="hidden flex items-center justify-center min-h-screen p-4">
     <div class="text-center max-w-sm">
       <div class="text-5xl mb-4">🔗</div>
       <h1 id="error-title" class="text-xl font-bold text-gray-900 mb-2"></h1>
-      <p id="error-msg" class="text-gray-500 text-sm"></p>
+      <p id="error-msg" class="text-sm text-gray-500"></p>
     </div>
   </div>
 
@@ -43,7 +43,7 @@
         class="mt-4 w-full py-2.5 rounded-xl text-sm font-semibold transition bg-indigo-600 hover:bg-indigo-700 text-white">
       </button>
       <p class="text-center mt-5 text-xs text-gray-400">
-        <span class="inline-flex items-center gap-1">
+        <span class="inline-flex items-center gap-1.5">
           <span class="w-4 h-4 bg-indigo-600 rounded flex items-center justify-center text-white font-bold" style="font-size:9px">R</span>
           RentManager
         </span>
@@ -54,7 +54,7 @@
   <!-- Main content -->
   <div id="state-main" class="hidden">
     <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-      <div class="max-w-5xl mx-auto px-6 py-3.5 flex items-center justify-between">
+      <div class="max-w-2xl mx-auto px-6 py-3.5 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">R</div>
           <span class="font-bold text-gray-900 text-sm">RentManager</span>
@@ -63,20 +63,27 @@
       </div>
     </header>
 
-    <div class="max-w-5xl mx-auto px-6 py-8">
-      <!-- House info -->
-      <div class="mb-8">
-        <h1 id="house-name" class="text-2xl font-bold text-gray-900"></h1>
-        <p id="house-address" class="text-gray-500 mt-1"></p>
-        <p id="rooms-summary" class="text-sm text-gray-400 mt-0.5"></p>
+    <div class="max-w-2xl mx-auto px-6 py-8">
+
+      <!-- House breadcrumb -->
+      <p id="house-crumb" class="text-sm text-gray-500 mb-1"></p>
+
+      <!-- Room title + availability -->
+      <div class="flex items-start justify-between gap-4 mb-6">
+        <div>
+          <h1 id="room-title" class="text-2xl font-bold text-gray-900"></h1>
+          <p id="house-address" class="text-gray-500 text-sm mt-0.5"></p>
+        </div>
+        <div id="availability-badge" class="flex-shrink-0 mt-1"></div>
       </div>
 
-      <!-- Rooms grid -->
-      <div id="rooms-grid"></div>
+      <!-- Room image -->
+      <div id="room-image" class="mb-6"></div>
 
-      <p class="text-center text-xs text-gray-300 mt-12">
-        Powered by RentManager
-      </p>
+      <!-- Details card -->
+      <div id="room-details" class="bg-white rounded-2xl border border-gray-200 p-6"></div>
+
+      <p class="text-center text-xs text-gray-300 mt-10">Powered by RentManager</p>
     </div>
   </div>
 
@@ -84,7 +91,6 @@
     (async function () {
       var t = RM.t, formatCurrency = RM.formatCurrency, badge = RM.badge, escHtml = RM.escHtml
 
-      // ── State helpers ─────────────────────────────────────────────────
       function showState(name) {
         ['loading','error','password','main'].forEach(function(s) {
           document.getElementById('state-' + s).classList.toggle('hidden', s !== name)
@@ -99,7 +105,6 @@
         showState('error')
       }
 
-      // ── Fetch share data via RPC ───────────────────────────────────────
       async function fetchShareData(password) {
         var res = await RM.db.rpc('get_share_data', {
           p_token:    token,
@@ -108,78 +113,55 @@
         return res.data
       }
 
-      // ── Render property ───────────────────────────────────────────────
-      function renderProperty(data) {
+      function renderRoom(data) {
+        var room     = data.room
         var house    = data.house
-        var rooms    = data.rooms || []
         var showRent = data.show_rent
 
-        document.title = escHtml(house.name) + ' — RentManager'
+        document.title = t('room_label') + ' ' + escHtml(room.room_number) + ' — ' + escHtml(house.name)
+
         document.getElementById('header-label').textContent = t('share_listing')
-        document.getElementById('house-name').textContent    = house.name
+        document.getElementById('house-crumb').textContent  = house.name
+        document.getElementById('room-title').textContent   = t('room_label') + ' ' + room.room_number
         document.getElementById('house-address').textContent =
           house.address + ', ' + house.city + ', ' + house.country
-        document.getElementById('rooms-summary').textContent =
-          rooms.length + ' ' + t('rooms_count')
+        document.getElementById('availability-badge').innerHTML =
+          badge(room.is_available ? 'vacant' : 'occupied')
 
-        var availableCount = rooms.filter(function(r) { return r.is_available }).length
-        if (rooms.length) {
-          document.getElementById('rooms-summary').textContent =
-            rooms.length + ' ' + t('rooms_count') + ' · ' + availableCount + ' ' + t('vacant').toLowerCase()
+        // Image
+        document.getElementById('room-image').innerHTML = room.image_url
+          ? '<img src="' + escHtml(room.image_url) + '" class="w-full rounded-2xl object-cover max-h-80"/>'
+          : ''
+
+        // Details rows
+        function row(label, value) {
+          return '<div class="flex justify-between gap-4 py-2.5 border-b border-gray-100 last:border-0">' +
+            '<span class="text-sm text-gray-500">' + label + '</span>' +
+            '<span class="text-sm text-gray-900 text-right font-medium">' + value + '</span>' +
+          '</div>'
         }
 
-        if (!rooms.length) {
-          document.getElementById('rooms-grid').innerHTML =
-            '<div class="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">' +
-              '<div class="text-4xl mb-4">🚪</div>' +
-              '<p class="text-gray-500 text-sm">' + t('no_rooms') + '</p>' +
-            '</div>'
-        } else {
-          document.getElementById('rooms-grid').innerHTML =
-            '<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">' +
-              rooms.map(function(room) {
-                return (
-                  '<div class="bg-white rounded-2xl border border-gray-200 flex flex-col overflow-hidden hover:shadow-sm transition">' +
-                    (room.image_url
-                      ? '<img src="' + escHtml(room.image_url) + '" class="w-full h-44 object-cover"/>'
-                      : '') +
-                    '<div class="flex-1 p-5">' +
-                      '<div class="flex items-start justify-between mb-3">' +
-                        (room.image_url
-                          ? ''
-                          : '<div class="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center text-lg">🚪</div>') +
-                        badge(room.is_available ? 'vacant' : 'occupied') +
-                      '</div>' +
-                      '<h3 class="font-semibold text-gray-900">' + t('room_label') + ' ' + escHtml(room.room_number) + '</h3>' +
-                      '<p class="text-xs text-gray-500 mt-1">' +
-                        t('floor_label') + ' ' + room.floor +
-                        (room.area_sqm ? ' · ' + room.area_sqm + ' m²' : '') +
-                      '</p>' +
-                      (showRent
-                        ? '<p class="text-sm font-semibold text-indigo-700 mt-2">' +
-                            formatCurrency(room.monthly_rent) + ' ' + t('per_month') +
-                          '</p>'
-                        : '') +
-                      (room.utilities_included
-                        ? '<p class="text-xs text-emerald-600 mt-1.5">✓ ' + t('utilities_included') + '</p>'
-                        : '') +
-                      (room.utility_details
-                        ? '<p class="text-xs text-gray-400 mt-0.5">' + escHtml(room.utility_details) + '</p>'
-                        : '') +
-                      (room.description
-                        ? '<p class="text-xs text-gray-500 mt-2 leading-relaxed">' + escHtml(room.description) + '</p>'
-                        : '') +
-                    '</div>' +
-                  '</div>'
-                )
-              }).join('') +
-            '</div>'
-        }
+        var rows =
+          row(t('floor_label'), room.floor) +
+          (room.area_sqm ? row(t('area_sqm'), room.area_sqm + ' m²') : '') +
+          (showRent
+            ? row(t('monthly_rent'),
+                '<span class="text-indigo-700 font-semibold">' + formatCurrency(room.monthly_rent) + ' ' + t('per_month') + '</span>')
+            : '') +
+          row(t('utilities'),
+            room.utilities_included
+              ? '<span class="text-emerald-600">✓ ' + t('yes') + '</span>'
+              : t('no')) +
+          (room.utility_details ? row(t('utility_details'), escHtml(room.utility_details)) : '') +
+          (room.description
+            ? '<div class="pt-3"><p class="text-sm text-gray-500 mb-1">' + t('description') + '</p>' +
+                '<p class="text-sm text-gray-700 leading-relaxed">' + escHtml(room.description) + '</p></div>'
+            : '')
 
+        document.getElementById('room-details').innerHTML = rows
         showState('main')
       }
 
-      // ── Password unlock ───────────────────────────────────────────────
       window.unlockWithPassword = async function () {
         var pw  = document.getElementById('pw-input').value
         var btn = document.getElementById('pw-btn')
@@ -202,12 +184,11 @@
           document.getElementById('pw-input').focus()
           return
         }
-        if (data.error === 'expired')   { showError('expired');    return }
-        if (data.error === 'not_found') { showError('not_found');  return }
-        renderProperty(data)
+        if (data.error === 'expired')   { showError('expired');   return }
+        if (data.error === 'not_found') { showError('not_found'); return }
+        renderRoom(data)
       }
 
-      // ── Bootstrap ─────────────────────────────────────────────────────
       var token = new URLSearchParams(location.search).get('t')
       if (!token) { showError('not_found'); return }
 
@@ -229,7 +210,7 @@
         return
       }
 
-      renderProperty(data)
+      renderRoom(data)
     })()
   </script>
 </body>
